@@ -106,7 +106,7 @@ public:
     bool isFilterEnabled, restartVoiceLFO;
     
     // performance parameters
-    float masterVolume, pitchOffset, vibratoDepth, vibratoFrequency,
+    float overallGain, overallPan, masterVolume, pitchOffset, vibratoDepth, vibratoFrequency,
     voiceVibratoDepth, voiceVibratoFrequency, glideRate;
     
     // parameters for mono-mode only

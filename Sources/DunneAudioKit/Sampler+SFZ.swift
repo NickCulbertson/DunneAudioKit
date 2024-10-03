@@ -26,12 +26,15 @@ extension SamplerData {
         var lowNoteNumber: MIDINoteNumber = 0
         var highNoteNumber: MIDINoteNumber = 127
         var noteNumber: MIDINoteNumber = 60
+        var noteDetune: Int = 0
         var lowVelocity: MIDIVelocity = 0
         var highVelocity: MIDIVelocity = 127
         var sample = ""
         var loopMode = "no_loop"
         var loopStartPoint: Float32 = 0
         var loopEndPoint: Float32 = 0
+        var gain: Float32 = 0
+        var pan: Float32 = 0
 
         let samplesBaseURL = url.deletingLastPathComponent()
 
@@ -46,6 +49,10 @@ extension SamplerData {
                 }
                 if trimmed.hasPrefix("<group>") {
                     // parse a <group> line
+                    noteDetune = 0
+                    gain = 0.0
+                    pan = 0.0
+                    
                     for part in trimmed.dropFirst(7).components(separatedBy: .whitespaces) {
                         if part.hasPrefix("key") {
                             noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
@@ -57,6 +64,12 @@ extension SamplerData {
                             highNoteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("pitch_keycenter") {
                             noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("detune") {
+                            noteDetune = Int(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("gain") {
+                            gain = Float(part.components(separatedBy: "=")[1]) ?? 0.0
+                        } else if part.hasPrefix("pan") {
+                            pan = Float(part.components(separatedBy: "=")[1]) ?? 0.0
                         }
                     }
                 }
@@ -83,35 +96,37 @@ extension SamplerData {
                     let noteLog = "load \(noteNumber) \(noteFrequency) NN range \(lowNoteNumber)-\(highNoteNumber)"
                     Log("\(noteLog) vel \(lowVelocity)-\(highVelocity) \(sample)")
 
-                    let sampleDescriptor = SampleDescriptor(noteNumber: Int32(noteNumber),
-                                                            noteFrequency: noteFrequency,
-                                                            minimumNoteNumber: Int32(lowNoteNumber),
-                                                            maximumNoteNumber: Int32(highNoteNumber),
-                                                            minimumVelocity: Int32(lowVelocity),
-                                                            maximumVelocity: Int32(highVelocity),
-                                                            isLooping: loopMode != "no_loop",
-                                                            loopStartPoint: loopStartPoint,
-                                                            loopEndPoint: loopEndPoint,
-                                                            startPoint: 0.0,
-                                                            endPoint: 0.0)
+                    let sampleDescriptor = SampleDescriptor(
+                        noteNumber: Int32(noteNumber),
+                        noteDetune: Int32(noteDetune), // Use the detune value from the group
+                        noteFrequency: noteFrequency,
+                        minimumNoteNumber: Int32(lowNoteNumber),
+                        maximumNoteNumber: Int32(highNoteNumber),
+                        minimumVelocity: Int32(lowVelocity),
+                        maximumVelocity: Int32(highVelocity),
+                        isLooping: loopMode != "no_loop",
+                        loopStartPoint: loopStartPoint,
+                        loopEndPoint: loopEndPoint,
+                        startPoint: 0.0,
+                        endPoint: 0.0,
+                        gain: gain,
+                        pan: pan
+                    )
+                    
                     sample = sample.replacingOccurrences(of: "\\", with: "/")
-                    let sampleFileURL = samplesBaseURL
-                        .appendingPathComponent(sample)
+                    let sampleFileURL = samplesBaseURL.appendingPathComponent(sample)
+                    
                     if sample.hasSuffix(".wv") {
                         sampleFileURL.path.withCString { path in
-                            loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor,
-                                                                                path: path))
+                            loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor, path: path))
                         }
                     } else {
                         if sample.hasSuffix(".aif") || sample.hasSuffix(".wav") {
-                            let compressedFileURL = samplesBaseURL
-                                .appendingPathComponent(String(sample.dropLast(4) + ".wv"))
+                            let compressedFileURL = samplesBaseURL.appendingPathComponent(String(sample.dropLast(4) + ".wv"))
                             let fileMgr = FileManager.default
                             if fileMgr.fileExists(atPath: compressedFileURL.path) {
                                 compressedFileURL.path.withCString { path in
-                                    loadCompressedSampleFile(
-                                        from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor,
-                                                                   path: path))
+                                    loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor, path: path))
                                 }
                             } else {
                                 let sampleFile = try AVAudioFile(forReading: sampleFileURL)
@@ -124,7 +139,6 @@ extension SamplerData {
         } catch {
             Log("Could not load SFZ: \(error.localizedDescription)")
         }
-
         buildKeyMap()
     }
 }

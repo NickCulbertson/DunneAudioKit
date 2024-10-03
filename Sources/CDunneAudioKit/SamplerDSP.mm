@@ -71,6 +71,8 @@ void akCoreSamplerSetLoopThruRelease(CoreSamplerRef pSampler, bool value) {
 struct SamplerDSP : DSPBase
 {
     // ramped parameters
+    LinearParameterRamp overallGainRamp;
+    LinearParameterRamp panRamp;
     LinearParameterRamp masterVolumeRamp;
     LinearParameterRamp pitchBendRamp;
     LinearParameterRamp vibratoDepthRamp;
@@ -151,6 +153,8 @@ SamplerDSP::SamplerDSP()
 {
     sampler.set(new CoreSampler);
     sampler.update();
+    overallGainRamp.setTarget(0.0, true);
+    panRamp.setTarget(0.0, true);
     masterVolumeRamp.setTarget(1.0, true);
     pitchBendRamp.setTarget(0.0, true);
     vibratoDepthRamp.setTarget(0.0, true);
@@ -180,6 +184,8 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
 {
     switch (address) {
         case SamplerParameterRampDuration:
+            overallGainRamp.setRampDuration(value, sampleRate);
+            panRamp.setRampDuration(value, sampleRate);
             masterVolumeRamp.setRampDuration(value, sampleRate);
             pitchBendRamp.setRampDuration(value, sampleRate);
             vibratoDepthRamp.setRampDuration(value, sampleRate);
@@ -192,7 +198,12 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
             pitchADSRSemitonesRamp.setRampDuration(value, sampleRate);
             glideRateRamp.setRampDuration(value, sampleRate);
             break;
-
+        case SamplerParameterOverallGain:
+            overallGainRamp.setTarget(value, immediate);
+            break;
+        case SamplerParameterPan:
+            panRamp.setTarget(value, immediate);
+            break;
         case SamplerParameterMasterVolume:
             masterVolumeRamp.setTarget(value, immediate);
             break;
@@ -302,7 +313,11 @@ float SamplerDSP::getParameter(AUParameterAddress address) __attribute__((no_san
     switch (address) {
         case SamplerParameterRampDuration:
             return pitchBendRamp.getRampDuration(sampleRate);
-
+        
+        case SamplerParameterOverallGain:
+            return overallGainRamp.getTarget();
+        case SamplerParameterPan:
+            return panRamp.getTarget();
         case SamplerParameterMasterVolume:
             return masterVolumeRamp.getTarget();
         case SamplerParameterPitchBend:
@@ -431,6 +446,10 @@ void SamplerDSP::process(FrameRange range)
         if (chunkSize > CORESAMPLER_CHUNKSIZE) chunkSize = CORESAMPLER_CHUNKSIZE;
 
         // ramp parameters
+        overallGainRamp.advanceTo(now + frameOffset);
+        sampler->overallGain = (float)overallGainRamp.getValue();
+        panRamp.advanceTo(now + frameOffset);
+        sampler->overallPan = (float)panRamp.getValue();
         masterVolumeRamp.advanceTo(now + frameOffset);
         sampler->masterVolume = (float)masterVolumeRamp.getValue();
         pitchBendRamp.advanceTo(now + frameOffset);
@@ -466,6 +485,8 @@ void SamplerDSP::process(FrameRange range)
 }
 
 AK_REGISTER_DSP(SamplerDSP, "samp")
+AK_REGISTER_PARAMETER(SamplerParameterOverallGain)
+AK_REGISTER_PARAMETER(SamplerParameterPan)
 AK_REGISTER_PARAMETER(SamplerParameterMasterVolume)
 AK_REGISTER_PARAMETER(SamplerParameterPitchBend)
 AK_REGISTER_PARAMETER(SamplerParameterVibratoDepth)

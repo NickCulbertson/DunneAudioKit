@@ -8,6 +8,8 @@
 typedef NS_ENUM(AUParameterAddress, SamplerParameter)
 {
     // ramped parameters
+    SamplerParameterOverallGain,
+    SamplerParameterPan,
     SamplerParameterMasterVolume,
     SamplerParameterPitchBend,
     SamplerParameterVibratoDepth,

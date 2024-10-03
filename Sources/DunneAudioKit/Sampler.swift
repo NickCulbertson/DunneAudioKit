@@ -17,6 +17,32 @@ public class Sampler: Node {
 
     private static var nonRampFlags: AudioUnitParameterOptions = [.flag_IsReadable, .flag_IsWritable]
 
+    /// Specification details for overall gain
+    public static let overallGainDef = NodeParameterDef(
+        identifier: "overallGain",
+        name: "Overall Gain",
+        address: akGetParameterAddress("SamplerParameterOverallGain"),
+        defaultValue: 0.0,
+        range: -90.0 ... 12.0,
+        unit: .generic
+    )
+
+    /// Pan (fraction)
+    @Parameter(overallGainDef) public var overallGain: AUValue
+    
+    /// Specification details for pan
+    public static let panDef = NodeParameterDef(
+        identifier: "pan",
+        name: "Pan",
+        address: akGetParameterAddress("SamplerParameterPan"),
+        defaultValue: 0.0,
+        range: -1.0 ... 1.0,
+        unit: .generic
+    )
+
+    /// Pan (fraction)
+    @Parameter(panDef) public var pan: AUValue
+    
     /// Specification details for master volume
     public static let masterVolumeDef = NodeParameterDef(
         identifier: "masterVolume",
@@ -457,12 +483,14 @@ public class Sampler: Node {
     }
 
     public func load(avAudioFile: AVAudioFile) {
-        let descriptor = SampleDescriptor(noteNumber: 64, noteFrequency: 440,
+        let descriptor = SampleDescriptor(noteNumber: 64, noteDetune: 0, noteFrequency: 440,
                                           minimumNoteNumber: 0, maximumNoteNumber: 127,
                                           minimumVelocity: 0, maximumVelocity: 127,
                                           isLooping: false, loopStartPoint: 0, loopEndPoint: 0.0,
                                           startPoint: 0.0,
-                                          endPoint: Float(avAudioFile.length))
+                                          endPoint: Float(avAudioFile.length),
+                                          gain: 0,
+                                          pan: 0)
         let data = SamplerData(sampleDescriptor: descriptor, file: avAudioFile)
         data.buildKeyMap()
         update(data: data)
@@ -568,6 +596,7 @@ public struct SamplerData {
 
     public func loadAudioFile(file: AVAudioFile,
                               rootNote: UInt8 = 48,
+                              noteDetune: Int = 0,
                               noteFrequency: Float = 440,
                               loKey: UInt8 = 0,
                               hiKey: UInt8 = 127,
@@ -577,9 +606,12 @@ public struct SamplerData {
                               endPoint: Float? = nil,
                               loopEnabled: Bool = false,
                               loopStartPoint: Float = 0,
-                              loopEndPoint: Float? = nil)
+                              loopEndPoint: Float? = nil,
+                              gain: Float = 0,
+                              pan: Float = 0)
     {
         let descriptor = SampleDescriptor(noteNumber: Int32(rootNote),
+                                          noteDetune: Int32(noteDetune),
                                           noteFrequency: noteFrequency,
                                           minimumNoteNumber: Int32(loKey),
                                           maximumNoteNumber: Int32(hiKey),
@@ -589,7 +621,9 @@ public struct SamplerData {
                                           loopStartPoint: loopStartPoint,
                                           loopEndPoint: loopEndPoint ?? Float(file.length),
                                           startPoint: startPoint,
-                                          endPoint: endPoint ?? Float(file.length))
+                                          endPoint: endPoint ?? Float(file.length),
+                                          gain: gain,
+                                          pan: pan)
 
         loadAudioFile(from: descriptor, file: file)
         akCoreSamplerBuildKeyMap(coreSamplerRef)

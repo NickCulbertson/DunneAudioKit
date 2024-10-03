@@ -45,6 +45,8 @@ CoreSampler::CoreSampler()
 , isKeyMapValid(false)
 , isFilterEnabled(false)
 , restartVoiceLFO(false)
+, overallGain(0.0f)
+, overallPan(0.0f)
 , masterVolume(1.0f)
 , pitchOffset(0.0f)
 , vibratoDepth(0.0f)
@@ -119,20 +121,31 @@ void CoreSampler::loadSampleData(SampleDataDescriptor& sdd)
     pBuf->maximumNoteNumber = sdd.sampleDescriptor.maximumNoteNumber;
     pBuf->minimumVelocity = sdd.sampleDescriptor.minimumVelocity;
     pBuf->maximumVelocity = sdd.sampleDescriptor.maximumVelocity;
+    pBuf->gain = sdd.sampleDescriptor.gain;
+    pBuf->pan = sdd.sampleDescriptor.pan;
+
     data->sampleBufferList.push_back(pBuf);
     
+    // Rest of the code
     pBuf->init(sdd.sampleRate, sdd.channelCount, sdd.sampleCount);
     float *pData = sdd.data;
-    if (sdd.isInterleaved) for (int i=0; i < sdd.sampleCount; i++)
+    if (sdd.isInterleaved)
     {
-        pBuf->setData(i, *pData++);
-        if (sdd.channelCount > 1) pBuf->setData(sdd.sampleCount + i, *pData++);
+        for (int i = 0; i < sdd.sampleCount; i++)
+        {
+            pBuf->setData(i, *pData++);
+            if (sdd.channelCount > 1) pBuf->setData(sdd.sampleCount + i, *pData++);
+        }
     }
-    else for (int i=0; i < sdd.channelCount * sdd.sampleCount; i++)
+    else
     {
-        pBuf->setData(i, *pData++);
+        for (int i = 0; i < sdd.channelCount * sdd.sampleCount; i++)
+        {
+            pBuf->setData(i, *pData++);
+        }
     }
     pBuf->noteNumber = sdd.sampleDescriptor.noteNumber;
+    pBuf->noteDetune = sdd.sampleDescriptor.noteDetune;
     pBuf->noteFrequency = sdd.sampleDescriptor.noteFrequency;
     
     // Handle rare case where loopEndPoint is 0 (due to being uninitialized)
@@ -283,67 +296,58 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
 
     float noteFrequency = data->tuningTable[noteNumber];
     
-    // sanity check: ensure we are initialized with at least one buffer
-    if (!isKeyMapValid || data->sampleBufferList.size() == 0) return;
-    
+    // Look up the sample associated with the note number and velocity
+    DunneCore::KeyMappedSampleBuffer *pBuf = lookupSample(noteNumber, velocity);
+    if (pBuf == 0) return;  // Don't crash if someone forgets to build the map
+
+    // Apply detune in cents to calculate final frequency
+    float detuneFactor = powf(2.0f, pBuf->noteDetune / 1200.0f);
+    float detunedFrequency = noteFrequency * detuneFactor;
+
     if (isMonophonic)
     {
-        if (isLegato && anotherKeyWasDown)
+        DunneCore::SamplerVoice *pVoice = &data->voice[0];
+        if (pVoice->noteNumber >= 0)
         {
-            // is our one and only voice playing some note?
-            DunneCore::SamplerVoice *pVoice = &data->voice[0];
-            if (pVoice->noteNumber >= 0)
-            {
-                pVoice->restartNewNoteLegato(noteNumber, currentSampleRate, noteFrequency);
-            }
-            else
-            {
-                DunneCore::KeyMappedSampleBuffer *pBuf = lookupSample(noteNumber, velocity);
-                if (pBuf == 0) return;  // don't crash if someone forgets to build map
-                pVoice->start(noteNumber, currentSampleRate, noteFrequency, velocity / 127.0f, pBuf);
-            }
-            lastPlayedNoteNumber = noteNumber;
-            return;
+            pVoice->restartNewNote(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
         }
         else
         {
-            // monophonic but not legato: always start a new note
-            DunneCore::SamplerVoice *pVoice = &data->voice[0];
-            DunneCore::KeyMappedSampleBuffer *pBuf = lookupSample(noteNumber, velocity);
-            if (pBuf == 0) return;  // don't crash if someone forgets to build map
-            if (pVoice->noteNumber >= 0)
-                pVoice->restartNewNote(noteNumber, currentSampleRate, noteFrequency, velocity / 127.0f, pBuf);
-            else
-                pVoice->start(noteNumber, currentSampleRate, noteFrequency, velocity / 127.0f, pBuf);
-            lastPlayedNoteNumber = noteNumber;
-            return;
+            pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
         }
+
+        // Set per-note gain and pan
+        pVoice->setGain(pBuf->gain);
+        pVoice->setPan(pBuf->pan); // Set the pan value
+
+        lastPlayedNoteNumber = noteNumber;
+        return;
     }
-    
-    else // polyphonic
+    else // Polyphonic
     {
-        // is any voice already playing this note?
         DunneCore::SamplerVoice *pVoice = voicePlayingNote(noteNumber);
         if (pVoice)
         {
-            DunneCore::KeyMappedSampleBuffer *pBuf = lookupSample(noteNumber, velocity);
-            if (pBuf == 0) return; // don't crash if someone forgets to build map
-            // re-start the note
             pVoice->restartSameNote(velocity / 127.0f, pBuf);
+            
+            // Set per-note gain and pan
+            pVoice->setGain(pBuf->gain);
+            pVoice->setPan(pBuf->pan); // Set the pan value
+
             return;
         }
         
-        // find a free voice (with noteNumber < 0) to play the note
-        int polyphony = isMonophonic ? 1 : MAX_POLYPHONY;
-        for (int i = 0; i < polyphony; i++)
+        for (int i = 0; i < MAX_POLYPHONY; i++)
         {
             DunneCore::SamplerVoice *pVoice = &data->voice[i];
             if (pVoice->noteNumber < 0)
             {
-                // found a free voice: assign it to play this note
-                DunneCore::KeyMappedSampleBuffer *pBuf = lookupSample(noteNumber, velocity);
-                if (pBuf == 0) return;  // don't crash if someone forgets to build map
-                pVoice->start(noteNumber, currentSampleRate, noteFrequency, velocity / 127.0f, pBuf);
+                pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
+                
+                // Set per-note gain and pan
+                pVoice->setGain(pBuf->gain);
+                pVoice->setPan(pBuf->pan); // Set the pan value
+
                 lastPlayedNoteNumber = noteNumber;
                 return;
             }
@@ -407,14 +411,21 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
 {
     float *pOutLeft = outBuffers[0];
     float *pOutRight = outBuffers[1];
+    
+    // Clear the output buffers
+    for (unsigned i = 0; i < sampleCount; i++) {
+        pOutLeft[i] = 0.0f;
+        pOutRight[i] = 0.0f;
+    }
+
     data->vibratoLFO.setFrequency(vibratoFrequency);
     float pitchDev = this->pitchOffset + vibratoDepth * data->vibratoLFO.getSample();
     float cutoffMul = isFilterEnabled ? cutoffMultiple : -1.0f;
-    
+
     bool allowSampleRunout = !(isMonophonic && isLegato);
 
     DunneCore::SamplerVoice *pVoice = &data->voice[0];
-    for (int i=0; i < MAX_POLYPHONY; i++, pVoice++)
+    for (int i = 0; i < MAX_POLYPHONY; i++, pVoice++)
     {
         pVoice->restartVoiceLFO = restartVoiceLFO;
         int nn = pVoice->noteNumber;
@@ -430,7 +441,26 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
             }
         }
     }
+
+    // Apply overall gain and pan to the mixed output
+    float overallGainLinear = powf(10.0f, overallGain / 20.0f); // Convert dB to linear scale
+
+    // Calculate pan values
+    float leftPan = (overallPan <= 0.0f) ? 1.0f : (1.0f - overallPan);
+    float rightPan = (overallPan >= 0.0f) ? 1.0f : (1.0f + overallPan);
+
+    // Apply overall gain and pan to each sample
+    for (unsigned i = 0; i < sampleCount; i++)
+    {
+        float leftValue = pOutLeft[i] * overallGainLinear * leftPan;
+        float rightValue = pOutRight[i] * overallGainLinear * rightPan;
+
+        // Store the updated values back to the output buffers
+        pOutLeft[i] = leftValue;
+        pOutRight[i] = rightValue;
+    }
 }
+
 
 void  CoreSampler::setADSRAttackDurationSeconds(float value) __attribute__((no_sanitize("thread")))
 {

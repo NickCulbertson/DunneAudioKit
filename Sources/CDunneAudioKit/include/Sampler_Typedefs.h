@@ -7,6 +7,7 @@
 typedef struct
 {
     int noteNumber;
+    int noteDetune;
     float noteFrequency;
     
     int minimumNoteNumber, maximumNoteNumber;
@@ -15,6 +16,8 @@ typedef struct
     bool isLooping;
     float loopStartPoint, loopEndPoint;
     float startPoint, endPoint;
+    float gain;
+    float pan;
 
 } SampleDescriptor;
 
