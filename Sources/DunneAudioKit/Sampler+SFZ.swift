@@ -33,6 +33,8 @@ extension SamplerData {
         var loopMode = "no_loop"
         var loopStartPoint: Float32 = 0
         var loopEndPoint: Float32 = 0
+        var startPoint: Float32 = 0  // New: Start point for sample playback
+        var endPoint: Float32 = 0    // New: End point for sample playback
         var gain: Float32 = 0
         var pan: Float32 = 0
 
@@ -86,6 +88,10 @@ extension SamplerData {
                             loopStartPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("loop_end") {
                             loopEndPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("start") {  // New: Parse the start point
+                            startPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("end") {    // New: Parse the end point
+                            endPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("sample") {
                             sample = trimmed.components(separatedBy: "sample=")[1]
                         }
@@ -107,8 +113,8 @@ extension SamplerData {
                         isLooping: loopMode != "no_loop",
                         loopStartPoint: loopStartPoint,
                         loopEndPoint: loopEndPoint,
-                        startPoint: 0.0,
-                        endPoint: 0.0,
+                        startPoint: startPoint,  // Set the parsed start point
+                        endPoint: endPoint,      // Set the parsed end point
                         gain: gain,
                         pan: pan
                     )

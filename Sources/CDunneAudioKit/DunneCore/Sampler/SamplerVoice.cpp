@@ -256,7 +256,7 @@ bool SamplerVoice::getSamples(int sampleCount, float *leftOutput, float *rightOu
 //        // Modify the cutoff frequency calculation to take the envelope into account more directly
 //        float envValue = filterEnvelope.getSample(); // Typically ranges from 0.0 to 1.0
 //        double cutoffFrequency = baseFrequency * cutoffMultiple * envValue;
-//
+//        
 //        // Ensure cutoff frequency stays within a reasonable range
 //        if (cutoffFrequency > samplingRate / 2.0f) // Nyquist frequency limit
 //            cutoffFrequency = samplingRate / 2.0f;

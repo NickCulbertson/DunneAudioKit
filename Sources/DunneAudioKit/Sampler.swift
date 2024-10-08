@@ -126,8 +126,8 @@ public class Sampler: Node {
         identifier: "filterCutoff",
         name: "Filter Cutoff",
         address: akGetParameterAddress("SamplerParameterFilterCutoff"),
-        defaultValue: 4.0,
-        range: 1 ... 1000,
+        defaultValue: 1000.0,
+        range: 1 ... 22050,
         unit: .rate
     )
 
@@ -153,7 +153,7 @@ public class Sampler: Node {
         name: "Filter Resonance",
         address: akGetParameterAddress("SamplerParameterFilterResonance"),
         defaultValue: 0,
-        range: -20 ... 20,
+        range: 0 ... 20,
         unit: .decibels
     )
 
