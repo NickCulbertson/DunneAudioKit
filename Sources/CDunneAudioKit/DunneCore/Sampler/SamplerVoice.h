@@ -71,7 +71,11 @@ namespace DunneCore
                                       float resLinear,
                                       float pitchADSRSemitones,
                                       float voiceLFOFrequencyHz,
-                                      float voiceLFODepthSemitones);
+                                      float voiceLFODepthSemitones,
+                                      float globalLFOValue,
+                                      float lfoTargetPitch,
+                                      float lfoTargetGain,
+                                      float lfoTargetFilter);
 
                 bool getSamples(int sampleCount, float *leftOutput, float *rightOutput);
 

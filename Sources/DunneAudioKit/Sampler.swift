@@ -465,6 +465,62 @@ public class Sampler: Node {
 
     /// filterEnvelopeVelocityScaling (fraction 0.0 to 1.0)
     @Parameter(filterEnvelopeVelocityScalingDef) public var filterEnvelopeVelocityScaling: AUValue
+    
+    // Sampler LFO parameters
+    public static let lfoRateDef = NodeParameterDef(
+        identifier: "lfoRate",
+        name: "LFO Rate",
+        address: akGetParameterAddress("SamplerParameterLFORate"),
+        defaultValue: 5.0,
+        range: 0.1 ... 200.0,
+        unit: .hertz
+    )
+    
+    @Parameter(lfoRateDef) public var lfoRate: AUValue
+
+    public static let lfoDepthDef = NodeParameterDef(
+        identifier: "lfoDepth",
+        name: "LFO Depth",
+        address: akGetParameterAddress("SamplerParameterLFODepth"),
+        defaultValue: 0.0,
+        range: 0.0 ... 1.0,
+        unit: .generic
+    )
+    
+    @Parameter(lfoDepthDef) public var lfoDepth: AUValue
+
+    public static let lfoTargetPitchToggleDef = NodeParameterDef(
+        identifier: "lfoTargetPitchToggle",
+        name: "LFO Target Pitch",
+        address: akGetParameterAddress("SamplerParameterLFOTargetPitchToggle"),
+        defaultValue: 0.0,
+        range: 0.0 ... 1.0,
+        unit: .boolean
+    )
+    
+    @Parameter(lfoTargetPitchToggleDef) public var lfoTargetPitchToggle: AUValue
+
+    public static let lfoTargetGainToggleDef = NodeParameterDef(
+        identifier: "lfoTargetGainToggle",
+        name: "LFO Target Gain",
+        address: akGetParameterAddress("SamplerParameterLFOTargetGainToggle"),
+        defaultValue: 0.0,
+        range: 0.0 ... 1.0,
+        unit: .boolean
+    )
+    
+    @Parameter(lfoTargetGainToggleDef) public var lfoTargetGainToggle: AUValue
+
+    public static let lfoTargetFilterToggleDef = NodeParameterDef(
+        identifier: "lfoTargetFilterToggle",
+        name: "LFO Target Filter",
+        address: akGetParameterAddress("SamplerParameterLFOTargetFilterToggle"),
+        defaultValue: 0.0,
+        range: 0.0 ... 1.0,
+        unit: .boolean
+    )
+    
+    @Parameter(lfoTargetFilterToggleDef) public var lfoTargetFilterToggle: AUValue
 
     // MARK: - Initialization
 

@@ -113,8 +113,8 @@ extension SamplerData {
                         isLooping: loopMode != "no_loop",
                         loopStartPoint: loopStartPoint,
                         loopEndPoint: loopEndPoint,
-                        startPoint: startPoint,  // Set the parsed start point
-                        endPoint: endPoint,      // Set the parsed end point
+                        startPoint: startPoint,
+                        endPoint: endPoint,
                         gain: gain,
                         pan: pan
                     )

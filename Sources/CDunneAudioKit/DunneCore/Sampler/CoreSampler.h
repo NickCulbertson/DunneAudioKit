@@ -107,7 +107,10 @@ public:
     
     // performance parameters
     float overallGain, overallPan, masterVolume, pitchOffset, vibratoDepth, vibratoFrequency,
-    voiceVibratoDepth, voiceVibratoFrequency, glideRate;
+        voiceVibratoDepth, voiceVibratoFrequency, glideRate, lfoRate, lfoDepth;
+
+    float lfoTargetPitchToggle, lfoTargetGainToggle, lfoTargetFilterToggle;
+    
     
     // parameters for mono-mode only
     

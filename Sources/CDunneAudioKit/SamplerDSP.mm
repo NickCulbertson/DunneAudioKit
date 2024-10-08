@@ -84,6 +84,8 @@ struct SamplerDSP : DSPBase
     LinearParameterRamp filterResonanceRamp;
     LinearParameterRamp pitchADSRSemitonesRamp;
     LinearParameterRamp glideRateRamp;
+    LinearParameterRamp lfoRateRamp;
+    LinearParameterRamp lfoDepthRamp;
 
     AtomicDataPtr<CoreSampler> sampler;
 
@@ -137,6 +139,10 @@ struct SamplerDSP : DSPBase
         newSampler->voiceVibratoFrequency = sampler->voiceVibratoFrequency;
         newSampler->setLoopThruRelease(sampler->loopThruRelease);
         
+        newSampler->lfoTargetPitchToggle = sampler->lfoTargetPitchToggle;
+        newSampler->lfoTargetGainToggle = sampler->lfoTargetGainToggle;
+        newSampler->lfoTargetFilterToggle = sampler->lfoTargetFilterToggle;
+        
         sampler.set(newSampler);
     }
 };
@@ -166,6 +172,8 @@ SamplerDSP::SamplerDSP()
     filterResonanceRamp.setTarget(1.0, true);
     pitchADSRSemitonesRamp.setTarget(0.0, true);
     glideRateRamp.setTarget(0.0, true);
+    lfoRateRamp.setTarget(5.0f, true);
+    lfoDepthRamp.setTarget(0.0f, true);
 }
 
 void SamplerDSP::init(int channelCount, double sampleRate)
@@ -266,7 +274,6 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
         case SamplerParameterFilterReleaseDuration:
             sampler->setFilterReleaseDurationSeconds(value);
             break;
-
         case SamplerParameterPitchAttackDuration:
             sampler->setPitchAttackDurationSeconds(value);
             break;
@@ -282,11 +289,9 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
         case SamplerParameterPitchADSRSemitones:
             pitchADSRSemitonesRamp.setTarget(value, immediate);
             break;
-
         case SamplerParameterRestartVoiceLFO:
             sampler->restartVoiceLFO = value > 0.5f;
             break;
-
         case SamplerParameterFilterEnable:
             sampler->isFilterEnabled = value > 0.5f;
             break;
@@ -304,6 +309,21 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
             break;
         case SamplerParameterFilterEnvelopeVelocityScaling:
             sampler->filterEnvelopeVelocityScaling = value;
+            break;
+        case SamplerParameterLFORate:
+            lfoRateRamp.setTarget(value, immediate);
+            break;
+        case SamplerParameterLFODepth:
+            lfoDepthRamp.setTarget(value, immediate);
+            break;
+        case SamplerParameterLFOTargetPitchToggle:
+            sampler->lfoTargetPitchToggle = value;
+            break;
+        case SamplerParameterLFOTargetGainToggle:
+            sampler->lfoTargetGainToggle = value;
+            break;
+        case SamplerParameterLFOTargetFilterToggle:
+            sampler->lfoTargetFilterToggle = value;
             break;
     }
 }
@@ -387,6 +407,16 @@ float SamplerDSP::getParameter(AUParameterAddress address) __attribute__((no_san
             return sampler->keyTracking;
         case SamplerParameterFilterEnvelopeVelocityScaling:
             return sampler->filterEnvelopeVelocityScaling;
+        case SamplerParameterLFORate:
+            return lfoRateRamp.getTarget();
+        case SamplerParameterLFODepth:
+            return lfoDepthRamp.getTarget();
+        case SamplerParameterLFOTargetPitchToggle:
+            return sampler->lfoTargetPitchToggle;
+        case SamplerParameterLFOTargetGainToggle:
+            return sampler->lfoTargetGainToggle;
+        case SamplerParameterLFOTargetFilterToggle:
+            return sampler->lfoTargetFilterToggle;
     }
     return 0;
 }
@@ -475,6 +505,12 @@ void SamplerDSP::process(FrameRange range)
         glideRateRamp.advanceTo(now + frameOffset);
         sampler->glideRate = (float)glideRateRamp.getValue();
 
+        lfoRateRamp.advanceTo(now + frameOffset);
+        lfoDepthRamp.advanceTo(now + frameOffset);
+
+        sampler->lfoRate = lfoRateRamp.getValue();
+        sampler->lfoDepth = lfoDepthRamp.getValue();
+        
         // get data
         float *outBuffers[2];
         outBuffers[0] = (float *)outputBufferList->mBuffers[0].mData + frameOffset;
@@ -519,4 +555,9 @@ AK_REGISTER_PARAMETER(SamplerParameterMonophonic)
 AK_REGISTER_PARAMETER(SamplerParameterLegato)
 AK_REGISTER_PARAMETER(SamplerParameterKeyTrackingFraction)
 AK_REGISTER_PARAMETER(SamplerParameterFilterEnvelopeVelocityScaling)
+AK_REGISTER_PARAMETER(SamplerParameterLFORate)
+AK_REGISTER_PARAMETER(SamplerParameterLFODepth)
+AK_REGISTER_PARAMETER(SamplerParameterLFOTargetPitchToggle)
+AK_REGISTER_PARAMETER(SamplerParameterLFOTargetGainToggle)
+AK_REGISTER_PARAMETER(SamplerParameterLFOTargetFilterToggle)
 AK_REGISTER_PARAMETER(SamplerParameterRampDuration)

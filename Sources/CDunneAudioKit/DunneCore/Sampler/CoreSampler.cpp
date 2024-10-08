@@ -34,6 +34,9 @@ struct CoreSampler::InternalData {
     // one vibrato LFO shared by all voices
     DunneCore::FunctionTableOscillator vibratoLFO;
     
+    // one vibrato LFO shared by all voices
+    DunneCore::FunctionTableOscillator globalLFO;
+    
     DunneCore::SustainPedalLogic pedalLogic;
     
     // tuning table
@@ -54,6 +57,11 @@ CoreSampler::CoreSampler()
 , voiceVibratoDepth(0.0f)
 , voiceVibratoFrequency(5.0f)
 , glideRate(0.0f)   // 0 sec/octave means "no glide"
+, lfoRate(5.0f)
+, lfoDepth(0.0f)
+, lfoTargetPitchToggle(0.0f)
+, lfoTargetGainToggle(0.0f)
+, lfoTargetFilterToggle(0.0f)
 , isMonophonic(false)
 , isLegato(false)
 , portamentoRate(1.0f)
@@ -77,6 +85,10 @@ CoreSampler::CoreSampler()
         pVoice->glideSecPerOctave = &glideRate;
     }
     
+    // Initialize global LFO (sinusoidal)
+    data->globalLFO.waveTable.sinusoid();
+    data->globalLFO.init(currentSampleRate / CORESAMPLER_CHUNKSIZE, lfoRate);
+    
     for (int i=0; i < 128; i++)
         data->tuningTable[i] = NOTE_HZ(i);
 }
@@ -94,6 +106,8 @@ int CoreSampler::init(double sampleRate)
     data->pitchEnvelopeParameters.updateSampleRate((float)(sampleRate/CORESAMPLER_CHUNKSIZE));
     data->vibratoLFO.waveTable.sinusoid();
     data->vibratoLFO.init(sampleRate/CORESAMPLER_CHUNKSIZE, 5.0f);
+    data->globalLFO.waveTable.sinusoid();
+    data->globalLFO.init(sampleRate / CORESAMPLER_CHUNKSIZE, lfoRate);
     
     for (int i=0; i<MAX_POLYPHONY; i++)
         data->voice[i].init(sampleRate);
@@ -411,56 +425,52 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
 {
     float *pOutLeft = outBuffers[0];
     float *pOutRight = outBuffers[1];
-    
-    // Clear the output buffers
+
+    // Clear output buffers
     for (unsigned i = 0; i < sampleCount; i++) {
         pOutLeft[i] = 0.0f;
         pOutRight[i] = 0.0f;
     }
 
-    data->vibratoLFO.setFrequency(vibratoFrequency);
-    float pitchDev = this->pitchOffset + vibratoDepth * data->vibratoLFO.getSample();
-    float cutoffMul = isFilterEnabled ? cutoffMultiple : -1.0f;
+    // Set the global LFO frequency
+    data->globalLFO.setFrequency(lfoRate);
 
-    bool allowSampleRunout = !(isMonophonic && isLegato);
+    // Get the current value from the global LFO
+    float globalLFOValue = data->globalLFO.getSample() * lfoDepth;
 
-    DunneCore::SamplerVoice *pVoice = &data->voice[0];
-    for (int i = 0; i < MAX_POLYPHONY; i++, pVoice++)
+    // Process each voice (polyphonic voices)
+    for (int i = 0; i < MAX_POLYPHONY; i++)
     {
-        pVoice->restartVoiceLFO = restartVoiceLFO;
-        int nn = pVoice->noteNumber;
-        if (nn >= 0)
+        DunneCore::SamplerVoice *pVoice = &data->voice[i];
+        if (pVoice->noteNumber >= 0)
         {
-            if (stoppingAllVoices ||
-                pVoice->prepToGetSamples(sampleCount, masterVolume, pitchDev, cutoffMul, keyTracking,
-                                         cutoffEnvelopeStrength, filterEnvelopeVelocityScaling, linearResonance,
-                                         pitchADSRSemitones, voiceVibratoDepth, voiceVibratoFrequency) ||
-                (pVoice->getSamples(sampleCount, pOutLeft, pOutRight) && allowSampleRunout))
-            {
-                stopNote(nn, true);
+            // Call the existing voice rendering logic
+            bool shouldStop = pVoice->prepToGetSamples(sampleCount, masterVolume, pitchOffset, cutoffMultiple,
+                                                       keyTracking, cutoffEnvelopeStrength, filterEnvelopeVelocityScaling,
+                                                       linearResonance, pitchADSRSemitones, voiceVibratoDepth, voiceVibratoFrequency,
+                                                       globalLFOValue, lfoTargetPitchToggle, lfoTargetGainToggle, lfoTargetFilterToggle);
+
+            // If the voice is done, stop it
+            if (shouldStop) {
+                stopNote(pVoice->noteNumber, true);
+            } else {
+                pVoice->getSamples(sampleCount, pOutLeft, pOutRight);
             }
         }
     }
 
-    // Apply overall gain and pan to the mixed output
-    float overallGainLinear = powf(10.0f, overallGain / 20.0f); // Convert dB to linear scale
-
-    // Calculate pan values
+    // Apply overall gain and pan (after processing voices)
+    float overallGainLinear = powf(10.0f, overallGain / 20.0f);
     float leftPan = (overallPan <= 0.0f) ? 1.0f : (1.0f - overallPan);
     float rightPan = (overallPan >= 0.0f) ? 1.0f : (1.0f + overallPan);
-
-    // Apply overall gain and pan to each sample
-    for (unsigned i = 0; i < sampleCount; i++)
-    {
+    
+    for (unsigned i = 0; i < sampleCount; i++) {
         float leftValue = pOutLeft[i] * overallGainLinear * leftPan;
         float rightValue = pOutRight[i] * overallGainLinear * rightPan;
-
-        // Store the updated values back to the output buffers
         pOutLeft[i] = leftValue;
         pOutRight[i] = rightValue;
     }
 }
-
 
 void  CoreSampler::setADSRAttackDurationSeconds(float value) __attribute__((no_sanitize("thread")))
 {
