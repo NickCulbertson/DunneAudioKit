@@ -16,7 +16,7 @@ Chorus, Flanger, Sampler, Stereo Delay, and Synth for AudioKit, by Shane Dunne.
 
 ## Documentation
 
-Detailed documentation is provided on [AudioKit's Website](http://audiokit.io/Packages/DunneAudioKit/).
+Detailed documentation is provided on [AudioKit's Website](https://audiokit.io/DunneAudioKit/).
 
 ## API Reference
 
