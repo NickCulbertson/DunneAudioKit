@@ -357,15 +357,15 @@ public class Sampler: Node {
     /// Specification details for pitchADSRSemitones
     public static let pitchADSRSemitonesDef = NodeParameterDef(
         identifier: "pitchADSRSemitones",
-        name: "Pitch EG Amount duration (semitones)",
+        name: "Pitch ADSR (semitones)",
         address: akGetParameterAddress("SamplerParameterPitchADSRSemitones"),
         defaultValue: 0,
-        range: 0 ... 12,
-        unit: .seconds,
+        range: -12 ... 12,
+        unit: .relativeSemiTones,
         flags: nonRampFlags
     )
 
-    /// Pitch EG Amount duration (semitones)
+    /// Pitch ADSR (semitones)
     @Parameter(pitchADSRSemitonesDef) public var pitchADSRSemitones: AUValue
 
     /// Specification details for restartVoiceLFO
