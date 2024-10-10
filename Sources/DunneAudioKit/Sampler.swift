@@ -431,7 +431,7 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterLegato"),
         defaultValue: 0,
         range: 0 ... 1,
-        unit: .generic,
+        unit: .boolean,
         flags: nonRampFlags
     )
 
