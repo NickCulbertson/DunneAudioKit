@@ -393,7 +393,7 @@ public class Sampler: Node {
         flags: nonRampFlags
     )
 
-    /// Enale Filter Flag
+    /// Enable Filter Flag
     @Parameter(filterEnableDef) public var filterEnable: AUValue
 
     /// Specification details for loopThruRelease
