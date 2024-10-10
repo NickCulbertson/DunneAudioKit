@@ -24,10 +24,10 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterOverallGain"),
         defaultValue: 0.0,
         range: -90.0 ... 12.0,
-        unit: .generic
+        unit: .decibels
     )
 
-    /// Pan (fraction)
+    /// Overall Gain (decibel)
     @Parameter(overallGainDef) public var overallGain: AUValue
     
     /// Specification details for pan
@@ -37,10 +37,10 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterPan"),
         defaultValue: 0.0,
         range: -1.0 ... 1.0,
-        unit: .generic
+        unit: .pan
     )
 
-    /// Pan (fraction)
+    /// Pan (fraction): left to right pan
     @Parameter(panDef) public var pan: AUValue
     
     /// Specification details for master volume
@@ -357,15 +357,15 @@ public class Sampler: Node {
     /// Specification details for pitchADSRSemitones
     public static let pitchADSRSemitonesDef = NodeParameterDef(
         identifier: "pitchADSRSemitones",
-        name: "Pitch EG Amount duration (semitones)",
+        name: "Pitch ADSR (semitones)",
         address: akGetParameterAddress("SamplerParameterPitchADSRSemitones"),
         defaultValue: 0,
-        range: 0 ... 12,
-        unit: .seconds,
+        range: -12 ... 12,
+        unit: .relativeSemiTones,
         flags: nonRampFlags
     )
 
-    /// Pitch EG Amount duration (semitones)
+    /// Pitch ADSR (semitones)
     @Parameter(pitchADSRSemitonesDef) public var pitchADSRSemitones: AUValue
 
     /// Specification details for restartVoiceLFO
@@ -393,7 +393,7 @@ public class Sampler: Node {
         flags: nonRampFlags
     )
 
-    /// Enale Filter Flag
+    /// Enable Filter Flag
     @Parameter(filterEnableDef) public var filterEnable: AUValue
 
     /// Specification details for loopThruRelease
@@ -431,7 +431,7 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterLegato"),
         defaultValue: 0,
         range: 0 ... 1,
-        unit: .generic,
+        unit: .boolean,
         flags: nonRampFlags
     )
 
@@ -594,7 +594,7 @@ public struct SamplerData {
     /// Initialize this sampler node for one file. There are many parameters, change them after initialization
     ///
     /// - Parameters:
-    ///   - sampleDescriptor: File describing how the audio file should be used
+    ///   - sampleDescriptor: Struct describing how the audio file should be used
     ///   - file: Audio file to use for sample
     public init(sampleDescriptor: SampleDescriptor, file: AVAudioFile) {
         loadAudioFile(from: sampleDescriptor, file: file)
