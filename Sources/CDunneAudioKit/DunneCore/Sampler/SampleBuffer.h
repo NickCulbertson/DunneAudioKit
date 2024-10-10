@@ -71,10 +71,10 @@ namespace DunneCore
     {
         // Any of these members may be negative, meaning "no value assigned"
         int noteNumber;     // closest MIDI note-number to this sample's frequency (noteFrequency)
-        int noteDetune; // detune in cents
+        int tune; // detune in cents
         int minimumNoteNumber, maximumNoteNumber;     // bounding note numbers for mapping
         int minimumVelocity, maximumVelocity;       // min/max MIDI velocities for mapping
-        float gain = 0.0f;
+        float volume = 0.0f;
         float pan = 0.0f;
     };
 

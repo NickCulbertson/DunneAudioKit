@@ -401,7 +401,7 @@ public class Sampler: Node {
         identifier: "loopThruRelease",
         name: "loopThruRelease",
         address: akGetParameterAddress("SamplerParameterLoopThruRelease"),
-        defaultValue: 0,
+        defaultValue: 1,
         range: 0 ... 1,
         unit: .boolean,
         flags: nonRampFlags
@@ -539,13 +539,13 @@ public class Sampler: Node {
     }
 
     public func load(avAudioFile: AVAudioFile) {
-        let descriptor = SampleDescriptor(noteNumber: 64, noteDetune: 0, noteFrequency: 440,
+        let descriptor = SampleDescriptor(noteNumber: 64, tune: 0, noteFrequency: 440,
                                           minimumNoteNumber: 0, maximumNoteNumber: 127,
                                           minimumVelocity: 0, maximumVelocity: 127,
                                           isLooping: false, loopStartPoint: 0, loopEndPoint: 0.0,
                                           startPoint: 0.0,
                                           endPoint: Float(avAudioFile.length),
-                                          gain: 0,
+                                          volume: 0,
                                           pan: 0)
         let data = SamplerData(sampleDescriptor: descriptor, file: avAudioFile)
         data.buildKeyMap()
@@ -652,7 +652,7 @@ public struct SamplerData {
 
     public func loadAudioFile(file: AVAudioFile,
                               rootNote: UInt8 = 48,
-                              noteDetune: Int = 0,
+                              tune: Int = 0,
                               noteFrequency: Float = 440,
                               loKey: UInt8 = 0,
                               hiKey: UInt8 = 127,
@@ -663,11 +663,11 @@ public struct SamplerData {
                               loopEnabled: Bool = false,
                               loopStartPoint: Float = 0,
                               loopEndPoint: Float? = nil,
-                              gain: Float = 0,
+                              volume: Float = 0,
                               pan: Float = 0)
     {
         let descriptor = SampleDescriptor(noteNumber: Int32(rootNote),
-                                          noteDetune: Int32(noteDetune),
+                                          tune: Int32(tune),
                                           noteFrequency: noteFrequency,
                                           minimumNoteNumber: Int32(loKey),
                                           maximumNoteNumber: Int32(hiKey),
@@ -678,7 +678,7 @@ public struct SamplerData {
                                           loopEndPoint: loopEndPoint ?? Float(file.length),
                                           startPoint: startPoint,
                                           endPoint: endPoint ?? Float(file.length),
-                                          gain: gain,
+                                          volume: volume,
                                           pan: pan)
 
         loadAudioFile(from: descriptor, file: file)

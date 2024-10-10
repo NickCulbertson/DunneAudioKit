@@ -13,7 +13,7 @@ class SamplerTests: XCTestCase {
         let sampleURL = Bundle.module.url(forResource: "TestResources/12345", withExtension: "wav")!
         let file = try! AVAudioFile(forReading: sampleURL)
         let sampler = Sampler()
-        let data = SamplerData(sampleDescriptor: SampleDescriptor(noteNumber: 64, noteDetune: 0, noteFrequency: 440, minimumNoteNumber: 0, maximumNoteNumber: 127, minimumVelocity: 0, maximumVelocity: 127, isLooping: false, loopStartPoint: 0, loopEndPoint: 1000.0, startPoint: 0.0, endPoint: 44100.0 * 5.0, gain: 0, pan: 0), file: file)
+        let data = SamplerData(sampleDescriptor: SampleDescriptor(noteNumber: 64, tune: 0, noteFrequency: 440, minimumNoteNumber: 0, maximumNoteNumber: 127, minimumVelocity: 0, maximumVelocity: 127, isLooping: false, loopStartPoint: 0, loopEndPoint: 1000.0, startPoint: 0.0, endPoint: 44100.0 * 5.0, volume: 0, pan: 0), file: file)
         data.buildKeyMap()
         sampler.update(data: data)
         sampler.masterVolume = 0.1
@@ -63,7 +63,7 @@ class SamplerTests: XCTestCase {
         let sampleURL = Bundle.module.url(forResource: "TestResources/12345", withExtension: "wav")!
         let file = try! AVAudioFile(forReading: sampleURL)
         let sampler = Sampler()
-        let data = SamplerData(sampleDescriptor: SampleDescriptor(noteNumber: 64, noteDetune: 0, noteFrequency: 440, minimumNoteNumber: 0, maximumNoteNumber: 127, minimumVelocity: 0, maximumVelocity: 127, isLooping: false, loopStartPoint: 0, loopEndPoint: 1000.0, startPoint: 0.0, endPoint: 44100.0 * 5.0, gain: 0, pan: 0), file: file)
+        let data = SamplerData(sampleDescriptor: SampleDescriptor(noteNumber: 64, tune: 0, noteFrequency: 440, minimumNoteNumber: 0, maximumNoteNumber: 127, minimumVelocity: 0, maximumVelocity: 127, isLooping: false, loopStartPoint: 0, loopEndPoint: 1000.0, startPoint: 0.0, endPoint: 44100.0 * 5.0, volume: 0, pan: 0), file: file)
         data.buildKeyMap()
         sampler.update(data: data)
         sampler.masterVolume = 0.1
@@ -87,7 +87,7 @@ class SamplerTests: XCTestCase {
         sampler.stop(noteNumber: 88)
         sleep(1)
 
-        let data2 = SamplerData(sampleDescriptor: SampleDescriptor(noteNumber: 64, noteDetune: 0, noteFrequency: 440, minimumNoteNumber: 0, maximumNoteNumber: 127, minimumVelocity: 0, maximumVelocity: 127, isLooping: false, loopStartPoint: 0, loopEndPoint: 1000.0, startPoint: 0.0, endPoint: 44100.0 * 5.0, gain: 0, pan: 0), file: file)
+        let data2 = SamplerData(sampleDescriptor: SampleDescriptor(noteNumber: 64, tune: 0, noteFrequency: 440, minimumNoteNumber: 0, maximumNoteNumber: 127, minimumVelocity: 0, maximumVelocity: 127, isLooping: false, loopStartPoint: 0, loopEndPoint: 1000.0, startPoint: 0.0, endPoint: 44100.0 * 5.0, volume: 0, pan: 0), file: file)
         data2.buildKeyMap()
         sampler.update(data: data2)
 
@@ -103,7 +103,7 @@ class SamplerTests: XCTestCase {
         let sampleURL = Bundle.module.url(forResource: "TestResources/12345", withExtension: "wav")!
         let file = try! AVAudioFile(forReading: sampleURL)
         let sampler = Sampler()
-        let data = SamplerData(sampleDescriptor: SampleDescriptor(noteNumber: 64, noteDetune: 0, noteFrequency: 440, minimumNoteNumber: 0, maximumNoteNumber: 127, minimumVelocity: 0, maximumVelocity: 127, isLooping: false, loopStartPoint: 0, loopEndPoint: 1000.0, startPoint: 0.0, endPoint: 44100.0 * 5.0, gain: 0, pan: 0), file: file)
+        let data = SamplerData(sampleDescriptor: SampleDescriptor(noteNumber: 64, tune: 0, noteFrequency: 440, minimumNoteNumber: 0, maximumNoteNumber: 127, minimumVelocity: 0, maximumVelocity: 127, isLooping: false, loopStartPoint: 0, loopEndPoint: 1000.0, startPoint: 0.0, endPoint: 44100.0 * 5.0, volume: 0, pan: 0), file: file)
         data.buildKeyMap()
         sampler.update(data: data)
         sampler.masterVolume = 0.1

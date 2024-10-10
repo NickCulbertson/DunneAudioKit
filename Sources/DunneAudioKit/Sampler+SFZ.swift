@@ -36,11 +36,11 @@ extension SamplerData {
         var endPoint: Float32 = 0    // New: End point for sample playback
         var groupPan: Float32 = 0.0    // Group-level pan
         var groupGain: Float32 = 0.0   // Group-level gain
-        var groupDetune: Int = 0       // Group-level detune
+        var groupTune: Int = 0       // Group-level tune
 
         var regionPan: Float32 = 0.0   // Region-level pan
         var regionGain: Float32 = 0.0  // Region-level gain
-        var regionDetune: Int = 0      // Region-level detune
+        var regionTune: Int = 0      // Region-level tune
 
         let samplesBaseURL = url.deletingLastPathComponent()
 
@@ -55,7 +55,7 @@ extension SamplerData {
                 }
                 if trimmed.hasPrefix("<group>") {
                     // parse a <group> line
-                    groupDetune = 0
+                    groupTune = 0
                     groupGain = 0.0
                     groupPan = 0.0
                     
@@ -70,9 +70,9 @@ extension SamplerData {
                             highNoteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("pitch_keycenter") {
                             noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("detune") {
-                            groupDetune = Int(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("gain") {
+                        } else if part.hasPrefix("tune") {
+                            groupTune = Int(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("volume") {
                             groupGain = Float(part.components(separatedBy: "=")[1]) ?? 0.0
                         } else if part.hasPrefix("pan") {
                             groupPan = Float(part.components(separatedBy: "=")[1]) ?? 0.0
@@ -83,7 +83,7 @@ extension SamplerData {
                     // parse a <region> line
                     regionPan = 0.0   // Reset region pan for each new region
                     regionGain = 0.0  // Reset region gain for each new region
-                    regionDetune = 0  // Reset region detune for each new region
+                    regionTune = 0  // Reset region tune for each new region
                     
                     for part in trimmed.dropFirst(12).components(separatedBy: .whitespaces) {
                         if part.hasPrefix("lovel") {
@@ -100,9 +100,9 @@ extension SamplerData {
                             startPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("end") {    // New: Parse the end point
                             endPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("detune") {  // Region-level detune
-                            regionDetune = Int(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("gain") {    // Region-level gain
+                        } else if part.hasPrefix("tune") {  // Region-level detune
+                            regionTune = Int(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("volume") {    // Region-level gain
                             regionGain = Float(part.components(separatedBy: "=")[1]) ?? 0.0
                         } else if part.hasPrefix("pan") {
                             regionPan = Float(part.components(separatedBy: "=")[1]) ?? 0.0
@@ -114,7 +114,7 @@ extension SamplerData {
                     // Calculate the total pan, gain, and detune for this region
                             let totalPan = groupPan + regionPan
                             let totalGain = groupGain + regionGain
-                            let totalDetune = groupDetune + regionDetune
+                            let totalTune = groupTune + regionTune
                     
                     let noteFrequency = Float(440.0 * pow(2.0, (Double(noteNumber) - 69.0) / 12.0))
 
@@ -123,7 +123,7 @@ extension SamplerData {
 
                     let sampleDescriptor = SampleDescriptor(
                         noteNumber: Int32(noteNumber),
-                        noteDetune: Int32(totalDetune), // Use the detune value from the group
+                        tune: Int32(totalTune), // Use the detune value from the group
                         noteFrequency: noteFrequency,
                         minimumNoteNumber: Int32(lowNoteNumber),
                         maximumNoteNumber: Int32(highNoteNumber),
@@ -134,7 +134,7 @@ extension SamplerData {
                         loopEndPoint: loopEndPoint,
                         startPoint: startPoint,
                         endPoint: endPoint,
-                        gain: totalGain,
+                        volume: totalGain,
                         pan: totalPan
                     )
                     

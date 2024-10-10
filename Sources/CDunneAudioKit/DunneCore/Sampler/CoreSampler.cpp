@@ -150,7 +150,7 @@ void CoreSampler::loadSampleData(SampleDataDescriptor& sdd)
     pBuf->maximumNoteNumber = sdd.sampleDescriptor.maximumNoteNumber;
     pBuf->minimumVelocity = sdd.sampleDescriptor.minimumVelocity;
     pBuf->maximumVelocity = sdd.sampleDescriptor.maximumVelocity;
-    pBuf->gain = sdd.sampleDescriptor.gain;
+    pBuf->volume = sdd.sampleDescriptor.volume;
     pBuf->pan = sdd.sampleDescriptor.pan;
 
     data->sampleBufferList.push_back(pBuf);
@@ -174,7 +174,7 @@ void CoreSampler::loadSampleData(SampleDataDescriptor& sdd)
         }
     }
     pBuf->noteNumber = sdd.sampleDescriptor.noteNumber;
-    pBuf->noteDetune = sdd.sampleDescriptor.noteDetune;
+    pBuf->tune = sdd.sampleDescriptor.tune;
     pBuf->noteFrequency = sdd.sampleDescriptor.noteFrequency;
     
     // Handle rare case where loopEndPoint is 0 (due to being uninitialized)
@@ -334,7 +334,7 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
         if (!samples.empty())
         {
             DunneCore::KeyMappedSampleBuffer *pBuf = samples.front();  // Use the first sample in monophonic mode
-            float detuneFactor = powf(2.0f, pBuf->noteDetune / 1200.0f);
+            float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
             float detunedFrequency = noteFrequency * detuneFactor;
 
             if (pVoice->noteNumber >= 0)
@@ -347,7 +347,7 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
             }
 
             // Set per-note gain and pan
-            pVoice->setGain(pBuf->gain);
+            pVoice->setGain(pBuf->volume);
             pVoice->setPan(pBuf->pan);
 
             lastPlayedNoteNumber = noteNumber;
@@ -360,7 +360,7 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
             if (pBuf == nullptr) continue;
 
             // Apply detune in cents to calculate final frequency
-            float detuneFactor = powf(2.0f, pBuf->noteDetune / 1200.0f);
+            float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
             float detunedFrequency = noteFrequency * detuneFactor;
 
             for (int i = 0; i < MAX_POLYPHONY; i++) {
@@ -369,7 +369,7 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
                     pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
 
                     // Set per-note gain and pan
-                    pVoice->setGain(pBuf->gain);
+                    pVoice->setGain(pBuf->volume);
                     pVoice->setPan(pBuf->pan);  // Set the pan value
 
                     break;  // Only one voice per sample
