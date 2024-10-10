@@ -24,10 +24,10 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterOverallGain"),
         defaultValue: 0.0,
         range: -90.0 ... 12.0,
-        unit: .generic
+        unit: .decibels
     )
 
-    /// Pan (fraction)
+    /// Overall Gain (decibel)
     @Parameter(overallGainDef) public var overallGain: AUValue
     
     /// Specification details for pan
@@ -37,10 +37,10 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterPan"),
         defaultValue: 0.0,
         range: -1.0 ... 1.0,
-        unit: .generic
+        unit: .pan
     )
 
-    /// Pan (fraction)
+    /// Pan (fraction): left to right pan
     @Parameter(panDef) public var pan: AUValue
     
     /// Specification details for master volume
