@@ -594,7 +594,7 @@ public struct SamplerData {
     /// Initialize this sampler node for one file. There are many parameters, change them after initialization
     ///
     /// - Parameters:
-    ///   - sampleDescriptor: File describing how the audio file should be used
+    ///   - sampleDescriptor: Struct describing how the audio file should be used
     ///   - file: Audio file to use for sample
     public init(sampleDescriptor: SampleDescriptor, file: AVAudioFile) {
         loadAudioFile(from: sampleDescriptor, file: file)
