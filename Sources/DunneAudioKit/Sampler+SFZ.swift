@@ -26,7 +26,6 @@ extension SamplerData {
         var lowNoteNumber: MIDINoteNumber = 0
         var highNoteNumber: MIDINoteNumber = 127
         var noteNumber: MIDINoteNumber = 60
-        var noteDetune: Int = 0
         var lowVelocity: MIDIVelocity = 0
         var highVelocity: MIDIVelocity = 127
         var sample = ""
@@ -35,8 +34,13 @@ extension SamplerData {
         var loopEndPoint: Float32 = 0
         var startPoint: Float32 = 0  // New: Start point for sample playback
         var endPoint: Float32 = 0    // New: End point for sample playback
-        var gain: Float32 = 0
-        var pan: Float32 = 0
+        var groupPan: Float32 = 0.0    // Group-level pan
+        var groupGain: Float32 = 0.0   // Group-level gain
+        var groupDetune: Int = 0       // Group-level detune
+
+        var regionPan: Float32 = 0.0   // Region-level pan
+        var regionGain: Float32 = 0.0  // Region-level gain
+        var regionDetune: Int = 0      // Region-level detune
 
         let samplesBaseURL = url.deletingLastPathComponent()
 
@@ -51,11 +55,11 @@ extension SamplerData {
                 }
                 if trimmed.hasPrefix("<group>") {
                     // parse a <group> line
-                    noteDetune = 0
-                    gain = 0.0
-                    pan = 0.0
+                    groupDetune = 0
+                    groupGain = 0.0
+                    groupPan = 0.0
                     
-                    for part in trimmed.dropFirst(7).components(separatedBy: .whitespaces) {
+                    for part in trimmed.dropFirst(12).components(separatedBy: .whitespaces) {
                         if part.hasPrefix("key") {
                             noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
                             lowNoteNumber = noteNumber
@@ -67,17 +71,21 @@ extension SamplerData {
                         } else if part.hasPrefix("pitch_keycenter") {
                             noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("detune") {
-                            noteDetune = Int(part.components(separatedBy: "=")[1]) ?? 0
+                            groupDetune = Int(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("gain") {
-                            gain = Float(part.components(separatedBy: "=")[1]) ?? 0.0
+                            groupGain = Float(part.components(separatedBy: "=")[1]) ?? 0.0
                         } else if part.hasPrefix("pan") {
-                            pan = Float(part.components(separatedBy: "=")[1]) ?? 0.0
+                            groupPan = Float(part.components(separatedBy: "=")[1]) ?? 0.0
                         }
                     }
                 }
                 if trimmed.hasPrefix("<region>") {
                     // parse a <region> line
-                    for part in trimmed.dropFirst(8).components(separatedBy: .whitespaces) {
+                    regionPan = 0.0   // Reset region pan for each new region
+                    regionGain = 0.0  // Reset region gain for each new region
+                    regionDetune = 0  // Reset region detune for each new region
+                    
+                    for part in trimmed.dropFirst(12).components(separatedBy: .whitespaces) {
                         if part.hasPrefix("lovel") {
                             lowVelocity = MIDIVelocity(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("hivel") {
@@ -92,11 +100,22 @@ extension SamplerData {
                             startPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("end") {    // New: Parse the end point
                             endPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("sample") {
+                        } else if part.hasPrefix("detune") {  // Region-level detune
+                            regionDetune = Int(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("gain") {    // Region-level gain
+                            regionGain = Float(part.components(separatedBy: "=")[1]) ?? 0.0
+                        } else if part.hasPrefix("pan") {
+                            regionPan = Float(part.components(separatedBy: "=")[1]) ?? 0.0
+                        }  else if part.hasPrefix("sample") {
                             sample = trimmed.components(separatedBy: "sample=")[1]
                         }
                     }
 
+                    // Calculate the total pan, gain, and detune for this region
+                            let totalPan = groupPan + regionPan
+                            let totalGain = groupGain + regionGain
+                            let totalDetune = groupDetune + regionDetune
+                    
                     let noteFrequency = Float(440.0 * pow(2.0, (Double(noteNumber) - 69.0) / 12.0))
 
                     let noteLog = "load \(noteNumber) \(noteFrequency) NN range \(lowNoteNumber)-\(highNoteNumber)"
@@ -104,7 +123,7 @@ extension SamplerData {
 
                     let sampleDescriptor = SampleDescriptor(
                         noteNumber: Int32(noteNumber),
-                        noteDetune: Int32(noteDetune), // Use the detune value from the group
+                        noteDetune: Int32(totalDetune), // Use the detune value from the group
                         noteFrequency: noteFrequency,
                         minimumNoteNumber: Int32(lowNoteNumber),
                         maximumNoteNumber: Int32(highNoteNumber),
@@ -115,8 +134,8 @@ extension SamplerData {
                         loopEndPoint: loopEndPoint,
                         startPoint: startPoint,
                         endPoint: endPoint,
-                        gain: gain,
-                        pan: pan
+                        gain: totalGain,
+                        pan: totalPan
                     )
                     
                     sample = sample.replacingOccurrences(of: "\\", with: "/")
