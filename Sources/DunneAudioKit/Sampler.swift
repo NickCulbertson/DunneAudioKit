@@ -652,7 +652,7 @@ public struct SamplerData {
         }
     }
 
-    /// Load an AVAudioFile and use it as base for all samples
+    /// Loads an AVAudioFile and uses it as base for all samples
     public func loadAudioFile(file: AVAudioFile,
                               rootNote: UInt8 = 48,
                               noteDetune: Int = 0,
