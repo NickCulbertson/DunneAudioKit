@@ -4,11 +4,9 @@
 #ifdef _WIN32
 #include "Sampler_Typedefs.h"
 #include <memory>
-#include <list>
 #else
 #import "Sampler_Typedefs.h"
 #import <memory>
-#import <list>
 #endif
 
 // process samples in "chunks" this size
@@ -25,9 +23,6 @@ class CoreSampler
 public:
     CoreSampler();
     ~CoreSampler();
-    
-    std::list<DunneCore::KeyMappedSampleBuffer*> lookupSamples(unsigned noteNumber, unsigned velocity);
-
     
     /// returns system error code, nonzero only if a problem occurs
     int init(double sampleRate);

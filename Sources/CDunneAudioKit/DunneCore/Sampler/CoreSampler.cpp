@@ -98,21 +98,6 @@ CoreSampler::~CoreSampler()
     unloadAllSamples();
 }
 
-// New `lookupSamples()` method: return all matching regions (buffers) for the note and velocity
-std::list<DunneCore::KeyMappedSampleBuffer*> CoreSampler::lookupSamples(unsigned noteNumber, unsigned velocity) {
-    std::list<DunneCore::KeyMappedSampleBuffer*> matchingSamples;
-
-    // Search for samples mapped to this note
-    for (DunneCore::KeyMappedSampleBuffer *pBuf : data->keyMap[noteNumber]) {
-        // Check if the velocity matches (if the sample has velocity range)
-        if ((int)velocity >= pBuf->minimumVelocity && (int)velocity <= pBuf->maximumVelocity) {
-            matchingSamples.push_back(pBuf);  // Add this sample to the list of matches
-        }
-    }
-
-    return matchingSamples;
-}
-
 int CoreSampler::init(double sampleRate)
 {
     currentSampleRate = (float)sampleRate;
@@ -325,88 +310,95 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
 
     float noteFrequency = data->tuningTable[noteNumber];
     
-    // Look up all samples (regions) associated with the note number and velocity
-    std::list<DunneCore::KeyMappedSampleBuffer*> samples = lookupSamples(noteNumber, velocity);
-    
+    // Look up the sample associated with the note number and velocity
+    DunneCore::KeyMappedSampleBuffer *pBuf = lookupSample(noteNumber, velocity);
+    if (pBuf == 0) return;  // Don't crash if someone forgets to build the map
+
+    // Apply detune in cents to calculate final frequency
+    float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
+    float detunedFrequency = noteFrequency * detuneFactor;
+
     if (isMonophonic)
     {
-        DunneCore::SamplerVoice *pVoice = &data->voice[0]; // Monophonic uses one voice
-        if (!samples.empty())
+        DunneCore::SamplerVoice *pVoice = &data->voice[0];
+        if (pVoice->noteNumber >= 0)
         {
-            DunneCore::KeyMappedSampleBuffer *pBuf = samples.front();  // Use the first sample in monophonic mode
-            float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
-            float detunedFrequency = noteFrequency * detuneFactor;
-
-            if (pVoice->noteNumber >= 0)
-            {
-                pVoice->restartNewNote(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
-            }
-            else
-            {
-                pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
-            }
-
-            // Set per-note gain and pan
-            pVoice->setGain(pBuf->volume);
-            pVoice->setPan(pBuf->pan);
-
-            lastPlayedNoteNumber = noteNumber;
+            pVoice->restartNewNote(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
         }
+        else
+        {
+            pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
+        }
+
+        // Set per-note gain and pan
+        pVoice->setGain(pBuf->volume);
+        pVoice->setPan(pBuf->pan); // Set the pan value
+
+        lastPlayedNoteNumber = noteNumber;
+        return;
     }
     else // Polyphonic
     {
-        // Iterate through all matching samples and start a voice for each
-        for (DunneCore::KeyMappedSampleBuffer *pBuf : samples) {
-            if (pBuf == nullptr) continue;
+        DunneCore::SamplerVoice *pVoice = voicePlayingNote(noteNumber);
+        if (pVoice)
+        {
+            pVoice->restartSameNote(velocity / 127.0f, pBuf);
+            
+            // Set per-note gain and pan
+            pVoice->setGain(pBuf->volume);
+            pVoice->setPan(pBuf->pan); // Set the pan value
 
-            // Apply detune in cents to calculate final frequency
-            float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
-            float detunedFrequency = noteFrequency * detuneFactor;
+            return;
+        }
+        
+        for (int i = 0; i < MAX_POLYPHONY; i++)
+        {
+            DunneCore::SamplerVoice *pVoice = &data->voice[i];
+            if (pVoice->noteNumber < 0)
+            {
+                pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
+                
+                // Set per-note gain and pan
+                pVoice->setGain(pBuf->volume);
+                pVoice->setPan(pBuf->pan); // Set the pan value
 
-            for (int i = 0; i < MAX_POLYPHONY; i++) {
-                DunneCore::SamplerVoice *pVoice = &data->voice[i];
-                if (pVoice->noteNumber < 0) {
-                    pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
-
-                    // Set per-note gain and pan
-                    pVoice->setGain(pBuf->volume);
-                    pVoice->setPan(pBuf->pan);  // Set the pan value
-
-                    break;  // Only one voice per sample
-                }
+                lastPlayedNoteNumber = noteNumber;
+                return;
             }
         }
     }
 }
-
 
 void CoreSampler::stop(unsigned noteNumber, bool immediate)
 {
-    if (isMonophonic) {
-        DunneCore::SamplerVoice *pVoice = &data->voice[0];  // Only one voice for monophonic
-        if (pVoice->noteNumber == noteNumber) {
-            if (immediate) {
-                pVoice->stop();  // Immediately stop the voice
-            } else {
-                pVoice->release(loopThruRelease);  // Release the note
-            }
+    DunneCore::SamplerVoice *pVoice = voicePlayingNote(noteNumber);
+    if (pVoice == 0) return;
+
+    if (immediate)
+    {
+        pVoice->stop();
+    }
+    else if (isMonophonic)
+    {
+        int key = data->pedalLogic.firstKeyDown();
+        if (key < 0) pVoice->release(loopThruRelease);
+        else if (isLegato) pVoice->restartNewNoteLegato((unsigned)key, currentSampleRate, data->tuningTable[key]);
+        else
+        {
+            unsigned velocity = 100;
+            DunneCore::KeyMappedSampleBuffer *pBuf = lookupSample(key, velocity);
+            if (pBuf == 0) return;  // don't crash if someone forgets to build map
+            if (pVoice->noteNumber >= 0)
+                pVoice->restartNewNote(key, currentSampleRate, data->tuningTable[key], velocity / 127.0f, pBuf);
+            else
+                pVoice->start(key, currentSampleRate, data->tuningTable[key], velocity / 127.0f, pBuf);
         }
     }
-    else {
-        // Polyphonic: stop all voices playing the note
-        for (int i = 0; i < MAX_POLYPHONY; i++) {
-            DunneCore::SamplerVoice *pVoice = &data->voice[i];
-            if (pVoice->noteNumber == noteNumber) {
-                if (immediate) {
-                    pVoice->stop();  // Immediately stop the voice
-                } else {
-                    pVoice->release(loopThruRelease);  // Release the note and allow it to decay
-                }
-            }
-        }
+    else
+    {
+        pVoice->release(loopThruRelease);
     }
 }
-
 
 void CoreSampler::stopAllVoices()
 {
