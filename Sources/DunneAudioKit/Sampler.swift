@@ -9,6 +9,8 @@ import CDunneAudioKit
 public class Sampler: Node {
     /// Connected nodes
     public var connections: [Node] { [] }
+    
+    private var samplerData: SamplerData?
 
     /// Underlying AVAudioNode
     public var avAudioNode: AVAudioNode = instantiate(instrument: "samp")
@@ -531,11 +533,13 @@ public class Sampler: Node {
 
     public init(sfzURL: URL) {
         setupParameters()
-        update(data: SamplerData(sfzURL: sfzURL))
+        samplerData = SamplerData(sfzURL: sfzURL)
+        update(data: samplerData!)
     }
 
     public func loadSFZ(url: URL) {
-        update(data: SamplerData(sfzURL: url))
+        samplerData = SamplerData(sfzURL: url)
+        update(data: samplerData!)
     }
 
     public func load(avAudioFile: AVAudioFile) {
@@ -549,7 +553,37 @@ public class Sampler: Node {
                                           pan: 0)
         let data = SamplerData(sampleDescriptor: descriptor, file: avAudioFile)
         data.buildKeyMap()
-        update(data: data)
+        samplerData = data
+        update(data: samplerData!)
+    }
+
+    /// Set a custom frequency for a specific MIDI note number
+    public func setNoteFrequency(noteNumber: Int, frequency: Float) {
+        guard let samplerData = samplerData else {
+            print("SamplerData is not initialized.")
+            return
+        }
+        samplerData.setNoteFrequency(noteNumber: noteNumber, frequency: frequency)
+    }
+
+    /// Set a custom tuning table for all MIDI note numbers
+    public func setTuningTable(frequencies: [Float]) {
+        guard frequencies.count == 128 else {
+            print("The tuning table must have 128 frequencies.")
+            return
+        }
+        
+        guard let samplerData = samplerData else {
+            print("SamplerData is not initialized.")
+            return
+        }
+        
+        for (noteNumber, frequency) in frequencies.enumerated() {
+            samplerData.setNoteFrequency(noteNumber: noteNumber, frequency: frequency)
+        }
+        
+        // After updating all frequencies, ensure the DSP is updated
+        update(data: samplerData)
     }
 
     public func update(data: SamplerData) {
@@ -697,6 +731,11 @@ public struct SamplerData {
     public func loadCompressedSampleFile(from sampleFileDescriptor: SampleFileDescriptor) {
         var copy = sampleFileDescriptor
         akCoreSamplerLoadCompressedFile(coreSamplerRef, &copy)
+    }
+
+    /// Set a custom frequency for a specific MIDI note number
+    public func setNoteFrequency(noteNumber: Int, frequency: Float) {
+        akCoreSamplerSetNoteFrequency(coreSamplerRef, Int32(noteNumber), frequency)
     }
 
     public func buildKeyMap() {
