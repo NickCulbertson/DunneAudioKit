@@ -22,56 +22,39 @@ namespace DunneCore
         tempGain = 0.0f;
     }
 
-    void SamplerVoice::setGain(float gainDB)
-    {
-        gain = powf(10.0f, gainDB / 20.0f); // Convert dB gain to linear scale and store it
+void SamplerVoice::setGain(float gainDB) {
+    gain = powf(10.0f, gainDB / 20.0f);  // Convert gain in dB to linear scale
+}
+
+void SamplerVoice::setPan(float panValue) {
+    // Clamp pan value between -1.0 (left) and 1.0 (right)
+    pan = (panValue < -1.0f) ? -1.0f : (panValue > 1.0f) ? 1.0f : panValue;
+}
+
+bool SamplerVoice::getSamples(int sampleCount, float* leftOutput, float* rightOutput) {
+    for (int i = 0; i < sampleCount; i++) {
+        float sampleGain = tempGain * volumeRamper.getNextValue() * gain;  // Apply gain
+        float leftSample, rightSample;
+
+        if (oscillator.getSamplePair(sampleBuffer, sampleCount, &leftSample, &rightSample, sampleGain)) return true;
+
+        // Apply panning
+        float panLeft = (pan <= 0.0f) ? 1.0f : (1.0f - pan);
+        float panRight = (pan >= 0.0f) ? 1.0f : (1.0f + pan);
+
+        float pannedLeftSample = leftSample * panLeft;
+        float pannedRightSample = rightSample * panRight;
+
+        if (isFilterEnabled) {
+            *leftOutput++ += leftFilter.process(pannedLeftSample);
+            *rightOutput++ += rightFilter.process(pannedRightSample);
+        } else {
+            *leftOutput++ += pannedLeftSample;
+            *rightOutput++ += pannedRightSample;
+        }
     }
-
-    void SamplerVoice::setPan(float panValue)
-    {
-        if (panValue < -1.0f)
-        {
-            pan = -1.0f;
-        }
-        else if (panValue > 1.0f)
-        {
-            pan = 1.0f;
-        }
-        else
-        {
-            pan = panValue;
-        }
-    }
-
-    bool SamplerVoice::getSamples(int sampleCount, float *leftOutput, float *rightOutput)
-    {
-        for (int i = 0; i < sampleCount; i++)
-        {
-            float sampleGain = tempGain * volumeRamper.getNextValue() * gain; // Apply per-note gain control
-            float leftSample, rightSample;
-            if (oscillator.getSamplePair(sampleBuffer, sampleCount, &leftSample, &rightSample, sampleGain))
-                return true;
-
-            // Apply panning
-            float panLeft = (pan <= 0.0f) ? 1.0f : (1.0f - pan);
-            float panRight = (pan >= 0.0f) ? 1.0f : (1.0f + pan);
-
-            float pannedLeftSample = leftSample * panLeft;
-            float pannedRightSample = rightSample * panRight;
-
-            if (isFilterEnabled)
-            {
-                *leftOutput++ += leftFilter.process(pannedLeftSample);
-                *rightOutput++ += rightFilter.process(pannedRightSample);
-            }
-            else
-            {
-                *leftOutput++ += pannedLeftSample;
-                *rightOutput++ += pannedRightSample;
-            }
-        }
-        return false;
-    }
+    return false;
+}
 
     void SamplerVoice::start(unsigned note, float sampleRate, float frequency, float volume, SampleBuffer *buffer)
     {
@@ -105,6 +88,8 @@ namespace DunneCore
         }
         noteFrequency = frequency;
         noteNumber = note;
+        instanceID = generateInstanceID();
+        isInRelease = false;
 
         restartVoiceLFOIfNeeded();
     }
@@ -170,6 +155,7 @@ namespace DunneCore
     
     void SamplerVoice::release(bool loopThruRelease)
     {
+        isInRelease = true;
         if (!loopThruRelease) oscillator.isLooping = false;
         ampEnvelope.release();
         filterEnvelope.release();
@@ -179,11 +165,21 @@ namespace DunneCore
     void SamplerVoice::stop()
     {
         noteNumber = -1;
+        instanceID = 0;
+        isInRelease = false;
         ampEnvelope.reset();
         volumeRamper.init(0.0f);
         filterEnvelope.reset();
         pitchEnvelope.reset();
     }
+
+
+
+uint32_t SamplerVoice::nextInstanceID = 1;  // Initialize counter
+
+uint32_t SamplerVoice::generateInstanceID() {
+    return nextInstanceID++;
+}
 
     bool SamplerVoice::prepToGetSamples(int sampleCount, float masterVolume, float pitchOffset,
                                         float cutoffMultiple, float keyTracking,

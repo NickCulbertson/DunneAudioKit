@@ -36,14 +36,14 @@ extension SamplerData {
         var endPoint: Float32 = 0    // New: End point for sample playback
         var groupPan: Float32 = 0.0    // Group-level pan
         var groupGain: Float32 = 0.0   // Group-level gain
-        var groupTune: Int = 0       // Group-level tune
-
+        var groupTune: Int = 0         // Group-level tune
+        
         var regionPan: Float32 = 0.0   // Region-level pan
         var regionGain: Float32 = 0.0  // Region-level gain
-        var regionTune: Int = 0      // Region-level tune
+        var regionTune: Int = 0        // Region-level tune
 
         let samplesBaseURL = url.deletingLastPathComponent()
-
+        
         do {
             let data = try String(contentsOf: url, encoding: .ascii)
             let lines = data.components(separatedBy: .newlines)
@@ -112,9 +112,9 @@ extension SamplerData {
                     }
 
                     // Calculate the total pan, gain, and detune for this region
-                            let totalPan = groupPan + regionPan
-                            let totalGain = groupGain + regionGain
-                            let totalTune = groupTune + regionTune
+                    let totalPan = groupPan + regionPan
+                    let totalGain = groupGain + regionGain
+                    let totalTune = groupTune + regionTune
                     
                     let noteFrequency = Float(440.0 * pow(2.0, (Double(noteNumber) - 69.0) / 12.0))
 
@@ -141,23 +141,14 @@ extension SamplerData {
                     sample = sample.replacingOccurrences(of: "\\", with: "/")
                     let sampleFileURL = samplesBaseURL.appendingPathComponent(sample)
                     
+                    // Load the file and handle compressed or uncompressed files
                     if sample.hasSuffix(".wv") {
                         sampleFileURL.path.withCString { path in
                             loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor, path: path))
                         }
-                    } else {
-                        if sample.hasSuffix(".aif") || sample.hasSuffix(".wav") {
-                            let compressedFileURL = samplesBaseURL.appendingPathComponent(String(sample.dropLast(4) + ".wv"))
-                            let fileMgr = FileManager.default
-                            if fileMgr.fileExists(atPath: compressedFileURL.path) {
-                                compressedFileURL.path.withCString { path in
-                                    loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor, path: path))
-                                }
-                            } else {
-                                let sampleFile = try AVAudioFile(forReading: sampleFileURL)
-                                loadAudioFile(from: sampleDescriptor, file: sampleFile)
-                            }
-                        }
+                    } else if sample.hasSuffix(".aif") || sample.hasSuffix(".wav") {
+                        let sampleFile = try AVAudioFile(forReading: sampleFileURL)
+                        loadAudioFile(from: sampleDescriptor, file: sampleFile)
                     }
                 }
             }

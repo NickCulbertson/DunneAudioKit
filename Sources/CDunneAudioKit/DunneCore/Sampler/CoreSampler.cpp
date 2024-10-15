@@ -318,85 +318,67 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
     float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
     float detunedFrequency = noteFrequency * detuneFactor;
 
-    if (isMonophonic)
+    // Always look for a free voice
+    for (int i = 0; i < MAX_POLYPHONY; i++)
     {
-        DunneCore::SamplerVoice *pVoice = &data->voice[0];
-        if (pVoice->noteNumber >= 0)
-        {
-            pVoice->restartNewNote(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
-        }
-        else
+        DunneCore::SamplerVoice *pVoice = &data->voice[i];
+        if (pVoice->noteNumber < 0)  // Only use voices that are not currently active
         {
             pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
-        }
 
-        // Set per-note gain and pan
-        pVoice->setGain(pBuf->volume);
-        pVoice->setPan(pBuf->pan); // Set the pan value
-
-        lastPlayedNoteNumber = noteNumber;
-        return;
-    }
-    else // Polyphonic
-    {
-        DunneCore::SamplerVoice *pVoice = voicePlayingNote(noteNumber);
-        if (pVoice)
-        {
-            pVoice->restartSameNote(velocity / 127.0f, pBuf);
-            
             // Set per-note gain and pan
             pVoice->setGain(pBuf->volume);
             pVoice->setPan(pBuf->pan); // Set the pan value
 
-            return;
-        }
-        
-        for (int i = 0; i < MAX_POLYPHONY; i++)
-        {
-            DunneCore::SamplerVoice *pVoice = &data->voice[i];
-            if (pVoice->noteNumber < 0)
-            {
-                pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
-                
-                // Set per-note gain and pan
-                pVoice->setGain(pBuf->volume);
-                pVoice->setPan(pBuf->pan); // Set the pan value
+            lastPlayedNoteNumber = noteNumber;
 
-                lastPlayedNoteNumber = noteNumber;
-                return;
-            }
+            // Track this voice in active notes
+            activeNotes.push_back({noteNumber, pVoice->instanceID, false});
+            return;
         }
     }
 }
 
+
+
 void CoreSampler::stop(unsigned noteNumber, bool immediate)
 {
-    DunneCore::SamplerVoice *pVoice = voicePlayingNote(noteNumber);
-    if (pVoice == 0) return;
-
-    if (immediate)
+    // Loop through active notes to find the right instance to stop
+    for (auto &entry : activeNotes)
     {
-        pVoice->stop();
-    }
-    else if (isMonophonic)
-    {
-        int key = data->pedalLogic.firstKeyDown();
-        if (key < 0) pVoice->release(loopThruRelease);
-        else if (isLegato) pVoice->restartNewNoteLegato((unsigned)key, currentSampleRate, data->tuningTable[key]);
-        else
+        if (std::get<0>(entry) == noteNumber) // Check if noteNumber matches
         {
-            unsigned velocity = 100;
-            DunneCore::KeyMappedSampleBuffer *pBuf = lookupSample(key, velocity);
-            if (pBuf == 0) return;  // don't crash if someone forgets to build map
-            if (pVoice->noteNumber >= 0)
-                pVoice->restartNewNote(key, currentSampleRate, data->tuningTable[key], velocity / 127.0f, pBuf);
-            else
-                pVoice->start(key, currentSampleRate, data->tuningTable[key], velocity / 127.0f, pBuf);
+            uint32_t instanceID = std::get<1>(entry);
+            bool isInRelease = std::get<2>(entry);
+
+            // Find the corresponding voice for this instanceID
+            DunneCore::SamplerVoice *pVoice = nullptr;
+            for (int i = 0; i < MAX_POLYPHONY; i++)
+            {
+                if (data->voice[i].noteNumber == noteNumber && data->voice[i].instanceID == instanceID)
+                {
+                    pVoice = &data->voice[i];
+                    break;
+                }
+            }
+
+            if (!pVoice) continue;
+
+            if (immediate)
+            {
+                // Immediately stop the voice and remove from activeNotes
+                pVoice->stop();
+                activeNotes.erase(std::remove(activeNotes.begin(), activeNotes.end(), entry), activeNotes.end());
+                return;
+            }
+            else if (!isInRelease)
+            {
+                // Release the voice if it's not already in the release phase
+                pVoice->release(loopThruRelease);
+                std::get<2>(entry) = true; // Mark as in release
+                return;
+            }
         }
-    }
-    else
-    {
-        pVoice->release(loopThruRelease);
     }
 }
 

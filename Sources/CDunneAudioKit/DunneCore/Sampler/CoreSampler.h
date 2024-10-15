@@ -4,9 +4,13 @@
 #ifdef _WIN32
 #include "Sampler_Typedefs.h"
 #include <memory>
+#include <vector>
+#include <tuple>
 #else
 #import "Sampler_Typedefs.h"
 #import <memory>
+#import <vector>
+#import <tuple>
 #endif
 
 // process samples in "chunks" this size
@@ -30,6 +34,8 @@ public:
     /// call this to un-load all samples and clear the keymap
     void deinit();
     
+    std::vector<std::tuple<unsigned, uint32_t, bool>> activeNotes;
+
     /// call before/after loading/unloading samples, to ensure none are in use
     void stopAllVoices();
     void restartVoices();

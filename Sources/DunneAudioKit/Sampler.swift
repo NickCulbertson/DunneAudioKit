@@ -581,9 +581,6 @@ public class Sampler: Node {
         for (noteNumber, frequency) in frequencies.enumerated() {
             samplerData.setNoteFrequency(noteNumber: noteNumber, frequency: frequency)
         }
-        
-        // After updating all frequencies, ensure the DSP is updated
-        update(data: samplerData)
     }
 
     public func update(data: SamplerData) {

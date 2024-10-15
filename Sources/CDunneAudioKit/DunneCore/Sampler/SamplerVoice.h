@@ -29,6 +29,10 @@ struct SamplerVoice
     float *glideSecPerOctave;
     int noteNumber;
     float noteFrequency;
+    bool isInRelease;
+    uint32_t instanceID;
+    static uint32_t nextInstanceID;
+
     float glideSemitones;
     float pitchEnvelopeSemitones;
     float voiceLFOSemitones;
@@ -60,6 +64,7 @@ struct SamplerVoice
     void restartSameNote(float volume, SampleBuffer *sampleBuffer);
     void release(bool loopThruRelease);
     void stop();
+    uint32_t generateInstanceID();
     
     bool prepToGetSamples(int sampleCount,
                           float masterVolume,
