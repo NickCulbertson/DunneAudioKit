@@ -16,76 +16,121 @@
 
 namespace DunneCore
 {
-struct SamplerVoice
-{
-    float samplingRate;
-    SampleOscillator oscillator;
-    SampleBuffer *sampleBuffer;
-    ResonantLowPassFilter leftFilter, rightFilter;
-    AHDSHREnvelope ampEnvelope;
-    ADSREnvelope filterEnvelope, pitchEnvelope;
-    FunctionTableOscillator vibratoLFO;
-    bool restartVoiceLFO;
-    float *glideSecPerOctave;
-    int noteNumber;
-    float noteFrequency;
-    bool isInRelease;
-    uint32_t instanceID;
-    static uint32_t nextInstanceID;
+    struct SamplerVoice
+    {
+        float samplingRate;
+        /// every voice has 1 oscillator
+        SampleOscillator oscillator;
 
-    float glideSemitones;
-    float pitchEnvelopeSemitones;
-    float voiceLFOSemitones;
-    float noteVolume;
-    float gain;
-    float pan;
-    float tempNoteVolume;
-    SampleBuffer *newSampleBuffer;
-    float tempGain;
-    LinearRamper volumeRamper;
-    bool isFilterEnabled;
+        /// a pointer to the sample buffer for that oscillator
+        SampleBuffer *sampleBuffer;
+
+        /// two filters (left/right)
+        ResonantLowPassFilter leftFilter, rightFilter;
+        AHDSHREnvelope ampEnvelope;
+        ADSREnvelope filterEnvelope, pitchEnvelope;
+
+        // per-voice vibrato LFO
+        FunctionTableOscillator vibratoLFO;
+
+        // restart phase of per-voice vibrato LFO
+        bool restartVoiceLFO;
+
+        /// common glide rate, seconds per octave
+        float *glideSecPerOctave;
+
+        /// MIDI note number, or -1 if not playing any note
+        int noteNumber;
+
+        /// (target) note frequency in Hz
+        float noteFrequency;
     
-    SamplerVoice() : noteNumber(-1), gain(0.0f), pan(0.0f) {}
+        /// track state of ADSR release
+        bool isInRelease;
     
-    void init(double sampleRate);
-    void setGain(float gainDB);
-    void setPan(float panValue); // Set the pan value
-    void updateAmpAdsrParameters() { ampEnvelope.updateParams(); }
-    void updateFilterAdsrParameters() { filterEnvelope.updateParams(); }
-    void updatePitchAdsrParameters() { pitchEnvelope.updateParams(); }
+        /// track voice instance
+        uint32_t instanceID;
+        
+        static uint32_t nextInstanceID;
     
-    void start(unsigned noteNumber,
-               float sampleRate,
-               float frequency,
-               float volume,
-               SampleBuffer *sampleBuffer);
-    void restartNewNote(unsigned noteNumber, float sampleRate, float frequency, float volume, SampleBuffer *buffer);
-    void restartNewNoteLegato(unsigned noteNumber, float sampleRate, float frequency);
-    void restartSameNote(float volume, SampleBuffer *sampleBuffer);
-    void release(bool loopThruRelease);
-    void stop();
-    uint32_t generateInstanceID();
+        /// per voice gain
+        float gain;
     
-    bool prepToGetSamples(int sampleCount,
-                          float masterVolume,
-                          float pitchOffset,
-                          float cutoffMultiple,
-                          float keyTracking,
-                          float cutoffEnvelopeStrength,
-                          float cutoffEnvelopeVelocityScaling,
-                          float resLinear,
-                          float pitchADSRSemitones,
-                          float voiceLFOFrequencyHz,
-                          float voiceLFODepthSemitones,
-                          float globalLFOValue,
-                          float lfoTargetPitch,
-                          float lfoTargetGain,
-                          float lfoTargetFilter);
+        /// per voice panning
+        float pan;
+
+        /// will reduce to zero during glide
+        float glideSemitones;
+
+        /// amount of semitone change via pitch envelope
+        float pitchEnvelopeSemitones;
+
+        /// amount of semitone change via voice lfo
+        float voiceLFOSemitones;
+
+        /// fraction 0.0 - 1.0, based on MIDI velocity
+        float noteVolume;
+
+        // temporary holding variables
+
+        /// Previous note volume while damping note before restarting
+        float tempNoteVolume;
+
+        /// Next sample buffer to use at restart
+        SampleBuffer *newSampleBuffer;
+
+        /// product of global volume, note volume
+        float tempGain;
+
+        /// ramper to smooth subsampled output of adsrEnvelope
+        LinearRamper volumeRamper;
+
+        /// true if filter should be used
+        bool isFilterEnabled;
     
-    bool getSamples(int sampleCount, float *leftOutput, float *rightOutput);
-    
-private:
-    bool hasStartedVoiceLFO;
-    void restartVoiceLFOIfNeeded();
-};
+        SamplerVoice() : noteNumber(-1), gain(0.0f), pan(0.0f) {}
+        
+        void init(double sampleRate);
+        
+        void setGain(float gainDB);
+        void setPan(float panValue);
+        void updateAmpAdsrParameters() { ampEnvelope.updateParams(); }
+        void updateFilterAdsrParameters() { filterEnvelope.updateParams(); }
+        void updatePitchAdsrParameters() { pitchEnvelope.updateParams(); }
+        
+        void start(unsigned noteNumber,
+                   float sampleRate,
+                   float frequency,
+                   float volume,
+                   SampleBuffer *sampleBuffer);
+        void restartNewNote(unsigned noteNumber, float sampleRate, float frequency, float volume, SampleBuffer *buffer);
+        void restartNewNoteLegato(unsigned noteNumber, float sampleRate, float frequency);
+        void restartSameNote(float volume, SampleBuffer *sampleBuffer);
+        void release(bool loopThruRelease);
+        void stop();
+        uint32_t generateInstanceID();
+        
+        // return true if amp envelope is finished
+        bool prepToGetSamples(int sampleCount,
+                              float masterVolume,
+                              float pitchOffset,
+                              float cutoffMultiple,
+                              float keyTracking,
+                              float cutoffEnvelopeStrength,
+                              float cutoffEnvelopeVelocityScaling,
+                              float resLinear,
+                              float pitchADSRSemitones,
+                              float voiceLFOFrequencyHz,
+                              float voiceLFODepthSemitones,
+                              float globalLFOValue,
+                              float lfoTargetPitch,
+                              float lfoTargetGain,
+                              float lfoTargetFilter);
+        
+        bool getSamples(int sampleCount, float *leftOutput, float *rightOutput);
+
+    private:
+        bool hasStartedVoiceLFO;
+        void restartVoiceLFOIfNeeded();
+    };
 }

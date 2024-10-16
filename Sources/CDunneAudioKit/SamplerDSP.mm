@@ -131,6 +131,10 @@ struct SamplerDSP : DSPBase
         newSampler->isMonophonic = sampler->isMonophonic;
         newSampler->keyTracking = sampler->keyTracking;
         newSampler->linearResonance = sampler->linearResonance;
+        newSampler->overallGain = sampler->overallGain;
+        newSampler->overallPan = sampler->overallPan;
+        newSampler->lfoRate = sampler->lfoRate;
+        newSampler->lfoDepth = sampler->lfoDepth;
         newSampler->masterVolume = sampler->masterVolume;
         newSampler->portamentoRate = sampler->portamentoRate;
         newSampler->vibratoDepth = sampler->vibratoDepth;
@@ -138,7 +142,6 @@ struct SamplerDSP : DSPBase
         newSampler->voiceVibratoDepth = sampler->voiceVibratoDepth;
         newSampler->voiceVibratoFrequency = sampler->voiceVibratoFrequency;
         newSampler->setLoopThruRelease(sampler->loopThruRelease);
-        
         newSampler->lfoTargetPitchToggle = sampler->lfoTargetPitchToggle;
         newSampler->lfoTargetGainToggle = sampler->lfoTargetGainToggle;
         newSampler->lfoTargetFilterToggle = sampler->lfoTargetFilterToggle;
@@ -194,6 +197,8 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
         case SamplerParameterRampDuration:
             overallGainRamp.setRampDuration(value, sampleRate);
             panRamp.setRampDuration(value, sampleRate);
+            lfoRateRamp.setRampDuration(value, sampleRate);
+            lfoDepthRamp.setRampDuration(value, sampleRate);
             masterVolumeRamp.setRampDuration(value, sampleRate);
             pitchBendRamp.setRampDuration(value, sampleRate);
             vibratoDepthRamp.setRampDuration(value, sampleRate);
@@ -211,6 +216,12 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
             break;
         case SamplerParameterPan:
             panRamp.setTarget(value, immediate);
+            break;
+        case SamplerParameterLFORate:
+            lfoRateRamp.setTarget(value, immediate);
+            break;
+        case SamplerParameterLFODepth:
+            lfoDepthRamp.setTarget(value, immediate);
             break;
         case SamplerParameterMasterVolume:
             masterVolumeRamp.setTarget(value, immediate);
@@ -310,20 +321,14 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
         case SamplerParameterFilterEnvelopeVelocityScaling:
             sampler->filterEnvelopeVelocityScaling = value;
             break;
-        case SamplerParameterLFORate:
-            lfoRateRamp.setTarget(value, immediate);
+        case SamplerParameterLFOTargetPitchEnable:
+            sampler->lfoTargetPitchToggle = value > 0.5f;
             break;
-        case SamplerParameterLFODepth:
-            lfoDepthRamp.setTarget(value, immediate);
+        case SamplerParameterLFOTargetGainEnable:
+            sampler->lfoTargetGainToggle = value > 0.5f;
             break;
-        case SamplerParameterLFOTargetPitchToggle:
-            sampler->lfoTargetPitchToggle = value;
-            break;
-        case SamplerParameterLFOTargetGainToggle:
-            sampler->lfoTargetGainToggle = value;
-            break;
-        case SamplerParameterLFOTargetFilterToggle:
-            sampler->lfoTargetFilterToggle = value;
+        case SamplerParameterLFOTargetFilterEnable:
+            sampler->lfoTargetFilterToggle = value > 0.5f;
             break;
     }
 }
@@ -333,7 +338,7 @@ float SamplerDSP::getParameter(AUParameterAddress address) __attribute__((no_san
     switch (address) {
         case SamplerParameterRampDuration:
             return pitchBendRamp.getRampDuration(sampleRate);
-        
+
         case SamplerParameterOverallGain:
             return overallGainRamp.getTarget();
         case SamplerParameterPan:
@@ -411,12 +416,12 @@ float SamplerDSP::getParameter(AUParameterAddress address) __attribute__((no_san
             return lfoRateRamp.getTarget();
         case SamplerParameterLFODepth:
             return lfoDepthRamp.getTarget();
-        case SamplerParameterLFOTargetPitchToggle:
-            return sampler->lfoTargetPitchToggle;
-        case SamplerParameterLFOTargetGainToggle:
-            return sampler->lfoTargetGainToggle;
-        case SamplerParameterLFOTargetFilterToggle:
-            return sampler->lfoTargetFilterToggle;
+        case SamplerParameterLFOTargetPitchEnable:
+            return sampler->lfoTargetPitchToggle ? 1.0f : 0.0f;
+        case SamplerParameterLFOTargetGainEnable:
+            return sampler->lfoTargetGainToggle ? 1.0f : 0.0f;
+        case SamplerParameterLFOTargetFilterEnable:
+            return sampler->lfoTargetFilterToggle ? 1.0f : 0.0f;
     }
     return 0;
 }
@@ -480,6 +485,10 @@ void SamplerDSP::process(FrameRange range)
         sampler->overallGain = (float)overallGainRamp.getValue();
         panRamp.advanceTo(now + frameOffset);
         sampler->overallPan = (float)panRamp.getValue();
+        lfoRateRamp.advanceTo(now + frameOffset);
+        sampler->lfoRate = (float)lfoRateRamp.getValue();
+        lfoDepthRamp.advanceTo(now + frameOffset);
+        sampler->lfoDepth = (float)lfoDepthRamp.getValue();
         masterVolumeRamp.advanceTo(now + frameOffset);
         sampler->masterVolume = (float)masterVolumeRamp.getValue();
         pitchBendRamp.advanceTo(now + frameOffset);
@@ -505,12 +514,6 @@ void SamplerDSP::process(FrameRange range)
         glideRateRamp.advanceTo(now + frameOffset);
         sampler->glideRate = (float)glideRateRamp.getValue();
 
-        lfoRateRamp.advanceTo(now + frameOffset);
-        lfoDepthRamp.advanceTo(now + frameOffset);
-
-        sampler->lfoRate = lfoRateRamp.getValue();
-        sampler->lfoDepth = lfoDepthRamp.getValue();
-        
         // get data
         float *outBuffers[2];
         outBuffers[0] = (float *)outputBufferList->mBuffers[0].mData + frameOffset;
@@ -557,7 +560,7 @@ AK_REGISTER_PARAMETER(SamplerParameterKeyTrackingFraction)
 AK_REGISTER_PARAMETER(SamplerParameterFilterEnvelopeVelocityScaling)
 AK_REGISTER_PARAMETER(SamplerParameterLFORate)
 AK_REGISTER_PARAMETER(SamplerParameterLFODepth)
-AK_REGISTER_PARAMETER(SamplerParameterLFOTargetPitchToggle)
-AK_REGISTER_PARAMETER(SamplerParameterLFOTargetGainToggle)
-AK_REGISTER_PARAMETER(SamplerParameterLFOTargetFilterToggle)
+AK_REGISTER_PARAMETER(SamplerParameterLFOTargetPitchEnable)
+AK_REGISTER_PARAMETER(SamplerParameterLFOTargetGainEnable)
+AK_REGISTER_PARAMETER(SamplerParameterLFOTargetFilterEnable)
 AK_REGISTER_PARAMETER(SamplerParameterRampDuration)

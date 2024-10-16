@@ -85,10 +85,6 @@ CoreSampler::CoreSampler()
         pVoice->glideSecPerOctave = &glideRate;
     }
     
-    // Initialize global LFO (sinusoidal)
-    data->globalLFO.waveTable.sinusoid();
-    data->globalLFO.init(currentSampleRate / CORESAMPLER_CHUNKSIZE, lfoRate);
-    
     for (int i=0; i < 128; i++)
         data->tuningTable[i] = NOTE_HZ(i);
 }

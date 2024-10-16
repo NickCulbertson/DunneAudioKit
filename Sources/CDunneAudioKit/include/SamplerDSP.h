@@ -46,9 +46,10 @@ typedef NS_ENUM(AUParameterAddress, SamplerParameter)
     SamplerParameterFilterEnvelopeVelocityScaling,
     SamplerParameterLFORate,
     SamplerParameterLFODepth,
-    SamplerParameterLFOTargetPitchToggle,
-    SamplerParameterLFOTargetGainToggle,
-    SamplerParameterLFOTargetFilterToggle,
+    SamplerParameterLFOTargetPitchEnable,
+    SamplerParameterLFOTargetGainEnable,
+    SamplerParameterLFOTargetFilterEnable,
+
     // ensure this is always last in the list, to simplify parameter addressing
     SamplerParameterRampDuration,
 };

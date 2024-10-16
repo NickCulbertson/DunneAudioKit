@@ -9,7 +9,8 @@ import CDunneAudioKit
 public class Sampler: Node {
     /// Connected nodes
     public var connections: [Node] { [] }
-    
+
+    /// SamplerData instance
     private var samplerData: SamplerData?
 
     /// Underlying AVAudioNode
@@ -29,9 +30,9 @@ public class Sampler: Node {
         unit: .generic
     )
 
-    /// Pan (fraction)
+    /// Gain (fraction)
     @Parameter(overallGainDef) public var overallGain: AUValue
-    
+
     /// Specification details for pan
     public static let panDef = NodeParameterDef(
         identifier: "pan",
@@ -44,14 +45,14 @@ public class Sampler: Node {
 
     /// Pan (fraction)
     @Parameter(panDef) public var pan: AUValue
-    
+
     /// Specification details for master volume
     public static let masterVolumeDef = NodeParameterDef(
         identifier: "masterVolume",
         name: "Master Volume",
         address: akGetParameterAddress("SamplerParameterMasterVolume"),
-        defaultValue: 1,
-        range: 0.0 ... 1,
+        defaultValue: 1.0,
+        range: 0.0 ... 1.0,
         unit: .generic
     )
 
@@ -128,8 +129,8 @@ public class Sampler: Node {
         identifier: "filterCutoff",
         name: "Filter Cutoff",
         address: akGetParameterAddress("SamplerParameterFilterCutoff"),
-        defaultValue: 1000.0,
-        range: 1 ... 22050,
+        defaultValue: 4.0,
+        range: 1 ... 1000,
         unit: .rate
     )
 
@@ -155,7 +156,7 @@ public class Sampler: Node {
         name: "Filter Resonance",
         address: akGetParameterAddress("SamplerParameterFilterResonance"),
         defaultValue: 0,
-        range: 0 ... 20,
+        range: -20 ... 20,
         unit: .decibels
     )
 
@@ -433,7 +434,7 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterLegato"),
         defaultValue: 0,
         range: 0 ... 1,
-        unit: .generic,
+        unit: .boolean,
         flags: nonRampFlags
     )
 
@@ -468,7 +469,7 @@ public class Sampler: Node {
     /// filterEnvelopeVelocityScaling (fraction 0.0 to 1.0)
     @Parameter(filterEnvelopeVelocityScalingDef) public var filterEnvelopeVelocityScaling: AUValue
     
-    // Sampler LFO parameters
+    /// Specification details for LFO Rate
     public static let lfoRateDef = NodeParameterDef(
         identifier: "lfoRate",
         name: "LFO Rate",
@@ -477,9 +478,11 @@ public class Sampler: Node {
         range: 0.1 ... 200.0,
         unit: .hertz
     )
-    
+
+    /// lfoRate (hertz)
     @Parameter(lfoRateDef) public var lfoRate: AUValue
 
+    /// Specification details for LFO Depth
     public static let lfoDepthDef = NodeParameterDef(
         identifier: "lfoDepth",
         name: "LFO Depth",
@@ -488,41 +491,51 @@ public class Sampler: Node {
         range: 0.0 ... 1.0,
         unit: .generic
     )
-    
+
+    /// lfoDepth (fraction)
     @Parameter(lfoDepthDef) public var lfoDepth: AUValue
 
-    public static let lfoTargetPitchToggleDef = NodeParameterDef(
-        identifier: "lfoTargetPitchToggle",
+    /// Specification details for LFO Target Pitch
+    public static let lfoTargetPitchEnableDef = NodeParameterDef(
+        identifier: "lfoTargetPitchEnable",
         name: "LFO Target Pitch",
-        address: akGetParameterAddress("SamplerParameterLFOTargetPitchToggle"),
+        address: akGetParameterAddress("SamplerParameterLFOTargetPitchEnable"),
         defaultValue: 0.0,
         range: 0.0 ... 1.0,
-        unit: .boolean
+        unit: .boolean,
+        flags: nonRampFlags
     )
-    
-    @Parameter(lfoTargetPitchToggleDef) public var lfoTargetPitchToggle: AUValue
 
-    public static let lfoTargetGainToggleDef = NodeParameterDef(
-        identifier: "lfoTargetGainToggle",
+    /// lfoTargetPitchEnable (boolean, 0.0 for false or 1.0 for true)
+    @Parameter(lfoTargetPitchEnableDef) public var lfoTargetPitchEnable: AUValue
+
+    /// Specification details for LFO Target Gain
+    public static let lfoTargetGainEnableDef = NodeParameterDef(
+        identifier: "lfoTargetGainEnable",
         name: "LFO Target Gain",
-        address: akGetParameterAddress("SamplerParameterLFOTargetGainToggle"),
+        address: akGetParameterAddress("SamplerParameterLFOTargetGainEnable"),
         defaultValue: 0.0,
         range: 0.0 ... 1.0,
-        unit: .boolean
+        unit: .boolean,
+        flags: nonRampFlags
     )
-    
-    @Parameter(lfoTargetGainToggleDef) public var lfoTargetGainToggle: AUValue
 
-    public static let lfoTargetFilterToggleDef = NodeParameterDef(
-        identifier: "lfoTargetFilterToggle",
+    /// lfoTargetGainEnable (boolean, 0.0 for false or 1.0 for true)
+    @Parameter(lfoTargetGainEnableDef) public var lfoTargetGainEnable: AUValue
+
+    /// Specification details for LFO Target Filter
+    public static let lfoTargetFilterEnableDef = NodeParameterDef(
+        identifier: "lfoTargetFilterEnable",
         name: "LFO Target Filter",
-        address: akGetParameterAddress("SamplerParameterLFOTargetFilterToggle"),
+        address: akGetParameterAddress("SamplerParameterLFOTargetFilterEnable"),
         defaultValue: 0.0,
         range: 0.0 ... 1.0,
-        unit: .boolean
+        unit: .boolean,
+        flags: nonRampFlags
     )
-    
-    @Parameter(lfoTargetFilterToggleDef) public var lfoTargetFilterToggle: AUValue
+
+    /// lfoTargetFilterEnable (boolean, 0.0 for false or 1.0 for true)
+    @Parameter(lfoTargetFilterEnableDef) public var lfoTargetFilterEnable: AUValue
 
     // MARK: - Initialization
 
@@ -543,10 +556,16 @@ public class Sampler: Node {
     }
 
     public func load(avAudioFile: AVAudioFile) {
-        let descriptor = SampleDescriptor(noteNumber: 64, tune: 0, noteFrequency: 440,
-                                          minimumNoteNumber: 0, maximumNoteNumber: 127,
-                                          minimumVelocity: 0, maximumVelocity: 127,
-                                          isLooping: false, loopStartPoint: 0, loopEndPoint: 0.0,
+        let descriptor = SampleDescriptor(noteNumber: 64,
+                                          tune: 0,
+                                          noteFrequency: 440,
+                                          minimumNoteNumber: 0,
+                                          maximumNoteNumber: 127,
+                                          minimumVelocity: 0,
+                                          maximumVelocity: 127,
+                                          isLooping: false,
+                                          loopStartPoint: 0,
+                                          loopEndPoint: 0.0,
                                           startPoint: 0.0,
                                           endPoint: Float(avAudioFile.length),
                                           volume: 0,
