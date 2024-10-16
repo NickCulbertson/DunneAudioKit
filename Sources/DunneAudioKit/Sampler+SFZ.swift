@@ -53,13 +53,15 @@ extension SamplerData {
                     // ignore blank lines and comment lines
                     continue
                 }
+
                 if trimmed.hasPrefix("<group>") {
                     // parse a <group> line
                     groupTune = 0
                     groupGain = 0.0
                     groupPan = 0.0
                     
-                    for part in trimmed.dropFirst(12).components(separatedBy: .whitespaces) {
+                    for part in trimmed.dropFirst(7).components(separatedBy: .whitespaces) {
+                                        print("Trimmed \(part)")
                         if part.hasPrefix("key") {
                             noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
                             lowNoteNumber = noteNumber
@@ -85,7 +87,7 @@ extension SamplerData {
                     regionGain = 0.0  // Reset region gain for each new region
                     regionTune = 0  // Reset region tune for each new region
                     
-                    for part in trimmed.dropFirst(12).components(separatedBy: .whitespaces) {
+                    for part in trimmed.dropFirst(8).components(separatedBy: .whitespaces) {
                         if part.hasPrefix("lovel") {
                             lowVelocity = MIDIVelocity(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("hivel") {

@@ -163,7 +163,7 @@ public:
     
     // helper functions
     DunneCore::SamplerVoice *voicePlayingNote(unsigned noteNumber);
-    DunneCore::KeyMappedSampleBuffer *lookupSample(unsigned noteNumber, unsigned velocity);
+    std::vector<DunneCore::KeyMappedSampleBuffer *> lookupSamples(unsigned noteNumber, unsigned velocity);
     void play(unsigned noteNumber,
               unsigned velocity,
               bool anotherKeyWasDown);
