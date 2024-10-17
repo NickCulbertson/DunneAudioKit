@@ -22,55 +22,20 @@ namespace DunneCore
         tempGain = 0.0f;
     }
 
-    void SamplerVoice::setGain(float gainDB)
-    {
-        gain = powf(10.0f, gainDB / 20.0f); // Convert dB gain to linear scale and store it
+    void SamplerVoice::setGain(float gainDB) {
+        // Convert gain in dB to linear scale
+        gain = powf(10.0f, gainDB / 20.0f);
     }
 
-    void SamplerVoice::setPan(float panValue)
-    {
-        if (panValue < -1.0f)
-        {
-            pan = -1.0f;
-        }
-        else if (panValue > 1.0f)
-        {
-            pan = 1.0f;
-        }
-        else
-        {
-            pan = panValue;
-        }
+    void SamplerVoice::setPan(float panValue) {
+        // Clamp pan value between -1.0 (left) and 1.0 (right)
+        pan = (panValue < -1.0f) ? -1.0f : (panValue > 1.0f) ? 1.0f : panValue;
     }
 
-    bool SamplerVoice::getSamples(int sampleCount, float *leftOutput, float *rightOutput)
-    {
-        for (int i = 0; i < sampleCount; i++)
-        {
-            float sampleGain = tempGain * volumeRamper.getNextValue() * gain; // Apply per-note gain control
-            float leftSample, rightSample;
-            if (oscillator.getSamplePair(sampleBuffer, sampleCount, &leftSample, &rightSample, sampleGain))
-                return true;
+    uint32_t SamplerVoice::nextInstanceID = 1;
 
-            // Apply panning
-            float panLeft = (pan <= 0.0f) ? 1.0f : (1.0f - pan);
-            float panRight = (pan >= 0.0f) ? 1.0f : (1.0f + pan);
-
-            float pannedLeftSample = leftSample * panLeft;
-            float pannedRightSample = rightSample * panRight;
-
-            if (isFilterEnabled)
-            {
-                *leftOutput++ += leftFilter.process(pannedLeftSample);
-                *rightOutput++ += rightFilter.process(pannedRightSample);
-            }
-            else
-            {
-                *leftOutput++ += pannedLeftSample;
-                *rightOutput++ += pannedRightSample;
-            }
-        }
-        return false;
+    uint32_t SamplerVoice::generateInstanceID() {
+        return nextInstanceID++;
     }
 
     void SamplerVoice::start(unsigned note, float sampleRate, float frequency, float volume, SampleBuffer *buffer)
@@ -105,6 +70,8 @@ namespace DunneCore
         }
         noteFrequency = frequency;
         noteNumber = note;
+        instanceID = generateInstanceID();
+        isInRelease = false;
 
         restartVoiceLFOIfNeeded();
     }
@@ -170,6 +137,7 @@ namespace DunneCore
     
     void SamplerVoice::release(bool loopThruRelease)
     {
+        isInRelease = true;
         if (!loopThruRelease) oscillator.isLooping = false;
         ampEnvelope.release();
         filterEnvelope.release();
@@ -179,6 +147,8 @@ namespace DunneCore
     void SamplerVoice::stop()
     {
         noteNumber = -1;
+        instanceID = 0;
+        isInRelease = false;
         ampEnvelope.reset();
         volumeRamper.init(0.0f);
         filterEnvelope.reset();
@@ -198,6 +168,8 @@ namespace DunneCore
         {
             tempGain = masterVolume * tempNoteVolume;
             volumeRamper.reinit(ampEnvelope.getSample(), sampleCount);
+            // This can execute as part of the voice-stealing mechanism, and will be executed rarely.
+            // To test, set MAX_POLYPHONY in CoreSampler.cpp to something small like 2 or 3.
             if (!ampEnvelope.isPreStarting())
             {
                 tempGain = masterVolume * noteVolume;
@@ -230,9 +202,10 @@ namespace DunneCore
             }
         }
 
-        pitchEnvelopeSemitones = pow(pitchEnvelope.getSample(), 1.0f) * pitchADSRSemitones;
+        float pitchCurveAmount = 1.0f; // >1 = faster curve, 0 < curve < 1 = slower curve - make this a parameter
+        if (pitchCurveAmount < 0) { pitchCurveAmount = 0; }
+        pitchEnvelopeSemitones = pow(pitchEnvelope.getSample(), pitchCurveAmount) * pitchADSRSemitones;
 
-        // Apply per-voice LFO
         vibratoLFO.setFrequency(voiceLFOFrequencyHz);
         voiceLFOSemitones = vibratoLFO.getSample() * voiceLFODepthSemitones;
 
@@ -247,7 +220,7 @@ namespace DunneCore
         float pitchOffsetModified = pitchOffset + glideSemitones + pitchEnvelopeSemitones + voiceLFOSemitones;
         oscillator.setPitchOffsetSemitones(pitchOffsetModified);
 
-        // Handle filter cutoff
+        // negative value of cutoffMultiple means filters are disabled
         if (cutoffMultiple < 0.0f)
         {
             isFilterEnabled = false;
@@ -265,7 +238,32 @@ namespace DunneCore
             leftFilter.setParameters(cutoffFrequency, resLinear);
             rightFilter.setParameters(cutoffFrequency, resLinear);
         }
+        return false;
+    }
 
+    bool SamplerVoice::getSamples(int sampleCount, float* leftOutput, float* rightOutput) {
+        for (int i = 0; i < sampleCount; i++) {
+            // Apply gain
+            float sampleGain = (tempGain + gain) * volumeRamper.getNextValue();
+            float leftSample, rightSample;
+
+            if (oscillator.getSamplePair(sampleBuffer, sampleCount, &leftSample, &rightSample, sampleGain)) return true;
+
+            // Apply panning
+            float panLeft = (pan <= 0.0f) ? 1.0f : (1.0f - pan);
+            float panRight = (pan >= 0.0f) ? 1.0f : (1.0f + pan);
+
+            float pannedLeftSample = leftSample * panLeft;
+            float pannedRightSample = rightSample * panRight;
+
+            if (isFilterEnabled) {
+                *leftOutput++ += leftFilter.process(pannedLeftSample);
+                *rightOutput++ += rightFilter.process(pannedRightSample);
+            } else {
+                *leftOutput++ += pannedLeftSample;
+                *rightOutput++ += pannedRightSample;
+            }
+        }
         return false;
     }
 

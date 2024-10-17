@@ -26,17 +26,20 @@ extension SamplerData {
         var lowNoteNumber: MIDINoteNumber = 0
         var highNoteNumber: MIDINoteNumber = 127
         var noteNumber: MIDINoteNumber = 60
-        var noteDetune: Int = 0
         var lowVelocity: MIDIVelocity = 0
         var highVelocity: MIDIVelocity = 127
         var sample = ""
         var loopMode = "no_loop"
         var loopStartPoint: Float32 = 0
         var loopEndPoint: Float32 = 0
-        var startPoint: Float32 = 0  // New: Start point for sample playback
-        var endPoint: Float32 = 0    // New: End point for sample playback
-        var gain: Float32 = 0
-        var pan: Float32 = 0
+        var startPoint: Float32 = 0
+        var endPoint: Float32 = 0
+        var groupPan: Float32 = 0
+        var groupGain: Float32 = 0
+        var groupTune: Int32 = 0
+        var regionPan: Float32 = 0
+        var regionGain: Float32 = 0
+        var regionTune: Int32 = 0
 
         let samplesBaseURL = url.deletingLastPathComponent()
 
@@ -51,10 +54,9 @@ extension SamplerData {
                 }
                 if trimmed.hasPrefix("<group>") {
                     // parse a <group> line
-                    noteDetune = 0
-                    gain = 0.0
-                    pan = 0.0
-                    
+                    groupTune = 0
+                    groupGain = 0.0
+                    groupPan = 0.0
                     for part in trimmed.dropFirst(7).components(separatedBy: .whitespaces) {
                         if part.hasPrefix("key") {
                             noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
@@ -66,17 +68,20 @@ extension SamplerData {
                             highNoteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("pitch_keycenter") {
                             noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("detune") {
-                            noteDetune = Int(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("gain") {
-                            gain = Float(part.components(separatedBy: "=")[1]) ?? 0.0
+                        } else if part.hasPrefix("tune") {
+                            groupTune = Int32(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("volume") {
+                            groupGain = Float32(part.components(separatedBy: "=")[1]) ?? 0.0
                         } else if part.hasPrefix("pan") {
-                            pan = Float(part.components(separatedBy: "=")[1]) ?? 0.0
+                            groupPan = Float32(part.components(separatedBy: "=")[1]) ?? 0.0
                         }
                     }
                 }
                 if trimmed.hasPrefix("<region>") {
                     // parse a <region> line
+                    regionTune = 0
+                    regionGain = 0.0
+                    regionPan = 0.0
                     for part in trimmed.dropFirst(8).components(separatedBy: .whitespaces) {
                         if part.hasPrefix("lovel") {
                             lowVelocity = MIDIVelocity(part.components(separatedBy: "=")[1]) ?? 0
@@ -88,14 +93,25 @@ extension SamplerData {
                             loopStartPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
                         } else if part.hasPrefix("loop_end") {
                             loopEndPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("start") {  // New: Parse the start point
+                        } else if part.hasPrefix("start") {
                             startPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("end") {    // New: Parse the end point
+                        } else if part.hasPrefix("end") {
                             endPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("sample") {
+                        } else if part.hasPrefix("tune") {
+                            regionTune = Int32(part.components(separatedBy: "=")[1]) ?? 0
+                        } else if part.hasPrefix("volume") {
+                            regionGain = Float32(part.components(separatedBy: "=")[1]) ?? 0.0
+                        } else if part.hasPrefix("pan") {
+                            regionPan = Float32(part.components(separatedBy: "=")[1]) ?? 0.0
+                        }  else if part.hasPrefix("sample") {
                             sample = trimmed.components(separatedBy: "sample=")[1]
                         }
                     }
+
+                    // Calculate the total pan, gain, and detune for this region
+                    let totalPan = groupPan + regionPan
+                    let totalGain = groupGain + regionGain
+                    let totalTune = groupTune + regionTune
 
                     let noteFrequency = Float(440.0 * pow(2.0, (Double(noteNumber) - 69.0) / 12.0))
 
@@ -104,7 +120,7 @@ extension SamplerData {
 
                     let sampleDescriptor = SampleDescriptor(
                         noteNumber: Int32(noteNumber),
-                        noteDetune: Int32(noteDetune), // Use the detune value from the group
+                        tune: Int32(totalTune),
                         noteFrequency: noteFrequency,
                         minimumNoteNumber: Int32(lowNoteNumber),
                         maximumNoteNumber: Int32(highNoteNumber),
@@ -115,24 +131,28 @@ extension SamplerData {
                         loopEndPoint: loopEndPoint,
                         startPoint: startPoint,
                         endPoint: endPoint,
-                        gain: gain,
-                        pan: pan
+                        volume: totalGain,
+                        pan: totalPan
                     )
-                    
+
                     sample = sample.replacingOccurrences(of: "\\", with: "/")
-                    let sampleFileURL = samplesBaseURL.appendingPathComponent(sample)
-                    
+                    let sampleFileURL = samplesBaseURL
+                        .appendingPathComponent(sample)
                     if sample.hasSuffix(".wv") {
                         sampleFileURL.path.withCString { path in
-                            loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor, path: path))
+                            loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor,
+                                                                                path: path))
                         }
                     } else {
                         if sample.hasSuffix(".aif") || sample.hasSuffix(".wav") {
-                            let compressedFileURL = samplesBaseURL.appendingPathComponent(String(sample.dropLast(4) + ".wv"))
+                            let compressedFileURL = samplesBaseURL
+                                .appendingPathComponent(String(sample.dropLast(4) + ".wv"))
                             let fileMgr = FileManager.default
                             if fileMgr.fileExists(atPath: compressedFileURL.path) {
                                 compressedFileURL.path.withCString { path in
-                                    loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor, path: path))
+                                    loadCompressedSampleFile(
+                                        from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor,
+                                                                   path: path))
                                 }
                             } else {
                                 let sampleFile = try AVAudioFile(forReading: sampleFileURL)
