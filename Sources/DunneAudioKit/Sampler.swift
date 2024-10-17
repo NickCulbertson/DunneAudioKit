@@ -27,7 +27,7 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterOverallGain"),
         defaultValue: 0.0,
         range: -90.0 ... 12.0,
-        unit: .generic
+        unit: .decibels
     )
 
     /// Gain (fraction)
@@ -40,10 +40,10 @@ public class Sampler: Node {
         address: akGetParameterAddress("SamplerParameterPan"),
         defaultValue: 0.0,
         range: -1.0 ... 1.0,
-        unit: .generic
+        unit: .pan
     )
 
-    /// Pan (fraction)
+    /// Pan (fraction): left to right pan
     @Parameter(panDef) public var pan: AUValue
 
     /// Specification details for master volume
@@ -360,15 +360,15 @@ public class Sampler: Node {
     /// Specification details for pitchADSRSemitones
     public static let pitchADSRSemitonesDef = NodeParameterDef(
         identifier: "pitchADSRSemitones",
-        name: "Pitch EG Amount duration (semitones)",
+        name: "Pitch ADSR (semitones)",
         address: akGetParameterAddress("SamplerParameterPitchADSRSemitones"),
         defaultValue: 0,
-        range: 0 ... 12,
-        unit: .seconds,
+        range: -12 ... 12,
+        unit: .relativeSemiTones,
         flags: nonRampFlags
     )
 
-    /// Pitch EG Amount duration (semitones)
+    /// Pitch ADSR (semitones)
     @Parameter(pitchADSRSemitonesDef) public var pitchADSRSemitones: AUValue
 
     /// Specification details for restartVoiceLFO
@@ -396,7 +396,7 @@ public class Sampler: Node {
         flags: nonRampFlags
     )
 
-    /// Enale Filter Flag
+    /// Enable Filter Flag
     @Parameter(filterEnableDef) public var filterEnable: AUValue
 
     /// Specification details for loopThruRelease
@@ -638,13 +638,14 @@ public class Sampler: Node {
     #endif
 }
 
+///  Use SamplerData together with SamplerDescriptor to build complex layers with different sounds. 
 public struct SamplerData {
     var coreSamplerRef = akCoreSamplerCreate()
 
-    /// Initialize this sampler node for one file. There are many parameters, change them after initialization
+    /// Initialize this sampler node for one file.
     ///
     /// - Parameters:
-    ///   - sampleDescriptor: File describing how the audio file should be used
+    ///   - sampleDescriptor: Struct describing how the audio file should be used
     ///   - file: Audio file to use for sample
     public init(sampleDescriptor: SampleDescriptor, file: AVAudioFile) {
         loadAudioFile(from: sampleDescriptor, file: file)
@@ -653,7 +654,7 @@ public struct SamplerData {
     /// A type to hold file with its sample descriptor
     public typealias FileWithSampleDescriptor = (sampleDescriptor: SampleDescriptor, file: AVAudioFile)
 
-    /// Initialize this sampler node with many files. There are many parameters, change them after initialization
+    /// Initialize this sampler node with many files.
     ///
     /// - Parameters:
     ///   - filesWSampleDescriptors: An array of sample descriptors and files
@@ -663,14 +664,14 @@ public struct SamplerData {
         }
     }
 
-    /// Initialize this sampler node with an SFZ style file. There are many parameters, change them after initialization
+    /// Initialize this sampler node with an SFZ style file.
     ///
     /// - Parameter sfzURL: URL of the SFZ sound font file
     public init(sfzURL: URL) {
         loadSFZ(url: sfzURL)
     }
 
-    /// Initialize this sampler node with SFZ path and file name. There are many parameters, change them after initialization
+    /// Initialize this sampler node with SFZ path and file name.
     ///
     /// - Parameters:
     ///   - sfzPath: Path to SFZ file
@@ -679,6 +680,7 @@ public struct SamplerData {
         loadSFZ(path: sfzPath, fileName: sfzFileName)
     }
 
+    /// Loads an AVAudioFile and provide metadata with a SampleDescriptor
     public func loadAudioFile(from sampleDescriptor: SampleDescriptor, file: AVAudioFile) {
         guard let floatChannelData = file.toFloatChannelData() else { return }
 
@@ -700,6 +702,7 @@ public struct SamplerData {
         }
     }
 
+    /// Loads an AVAudioFile and uses it as base for all samples
     public func loadAudioFile(file: AVAudioFile,
                               rootNote: UInt8 = 48,
                               tune: Int = 0,
@@ -754,10 +757,12 @@ public struct SamplerData {
         akCoreSamplerSetNoteFrequency(coreSamplerRef, Int32(noteNumber), frequency)
     }
 
+    /// Builds a full key/velocity map based on min/max note-number and velocity values for all samples
     public func buildKeyMap() {
         akCoreSamplerBuildKeyMap(coreSamplerRef)
     }
 
+    /// Builds a key/velocity map when you only have note-numbers for each sample. This will map each MIDI note-number (at any velocity) to the *nearest available* sample.
     public func buildSimpleKeyMap() {
         akCoreSamplerBuildSimpleKeyMap(coreSamplerRef)
     }

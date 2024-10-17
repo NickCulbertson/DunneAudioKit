@@ -12,17 +12,14 @@
 **Sampler** is nowhere near as powerful as *AUSampler*. If your app depends on **AppleSampler** or the **MIDISampler** wrapper class, you should continue to use it.
 
 ### Loading samples
-**Sampler** provides three distinct mechanisms for loading samples:
+**Sampler** provides several distinct mechanisms for loading samples:
 
-1. `loadRawSampleData()` allows use of sample data already in memory, e.g. data generated programmatically or read using custom file-reading code.
-2. `loadSFZ()` loads entire sets of samples by interpreting a simplistic subset of the "SFZ" soundfont file format.
-3. `loadRawSampleData()` and `loadCompressedSampleFile()` take a "descriptor" argument, whose many member variables define details like the sample's natural MIDI note-number and pitch (frequency), plus details about loop start and end points, if used. See more in <doc:Sampler-descriptors>.
-
-For `loadUsingSfzFile()` allows all this "metadata" to be encoded in a SFZ file, using a simple plain-text format which is easy to understand and edit manually. More information on <doc:Preparing-Sample-Sets>. 
-
-The mapping of MIDI (note number, velocity) pairs to samples is done using some internal lookup tables, which can be populated in one of two ways:
-
-1. When your metadata includes min/max note-number and velocity values for all samples, call `buildKeyMap()` to build a full key/velocity map.
-2. If you only have note-numbers for each sample, call `buildSimpleKeyMap()` to map each MIDI note-number (at any velocity) to the *nearest available* sample.
+1. ``Sampler/loadSFZ(url:)``  or ``Sampler/init(sfzURL:)`` loads entire sets of samples by interpreting a simplistic subset of the "SFZ" soundfont file format.  SFZ is a simple plain-text format which is easy to understand and edit manually. More information on <doc:Preparing-Sample-Sets>. 
+2. ``Sampler/load(avAudioFile:)`` loads an ``AVAudio/AVAudioFile`` and uses it as sampler sound, assuming the file holds a middle A at 440Hz.
+3. ``SamplerData`` and ``SampleDescriptor`` have many member variables to define details like the sample's natural MIDI note-number and pitch (frequency), plus details about loop start and end points, if used. See more in <doc:Sampler-descriptors>. Use ``Sampler/init()``then  ``update(data:)``. This method is the most versatile:
+    - use sample data already in memory, e.g. data generated programmatically
+    - read sample data using custom file-reading code
+    - read compressed wavpack files with ``SamplerData/loadCompressedSampleFile(from:)``
+    - mapping of MIDI-pairs (note number, velocity) to samples is done using some internal lookup tables, which can be populated in one of two ways: ``SamplerData/buildKeyMap()`` and ``SamplerData/buildSimpleKeyMap()`` 
 
 **Important:** Before loading a new group of samples, you must call `unloadAllSamples()`. Otherwise, the new samples will be loaded *in addition* to the already-loaded ones. This wastes memory and worse, newly-loaded samples will usually not sound at all, because the sampler simply plays the first matching sample it finds.
