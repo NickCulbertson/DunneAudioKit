@@ -35,9 +35,12 @@ public:
     void deinit();
     
     std::vector<std::tuple<unsigned, uint32_t, bool>> activeNotes;
-
+    std::vector<unsigned> heldNotes;
+    unsigned getLastHeldNote();
+    
     /// call before/after loading/unloading samples, to ensure none are in use
     void stopAllVoices();
+    void stopAllVoicesMonophonic();
     void restartVoices();
     
     /// call to load samples
@@ -63,6 +66,8 @@ public:
     void playNote(unsigned noteNumber, unsigned velocity);
     void stopNote(unsigned noteNumber, bool immediate);
     void sustainPedal(bool down);
+    void addHeldNote(unsigned noteNumber);
+    void removeHeldNote(unsigned noteNumber);
     
     void render(unsigned channelCount, unsigned sampleCount, float *outBuffers[]);
 

@@ -76,64 +76,64 @@ namespace DunneCore
         restartVoiceLFOIfNeeded();
     }
     
-    void SamplerVoice::restartNewNote(unsigned note, float sampleRate, float frequency, float volume, SampleBuffer *buffer)
-    {
-        samplingRate = sampleRate;
-        leftFilter.updateSampleRate(double(samplingRate));
-        rightFilter.updateSampleRate(double(samplingRate));
+//    void SamplerVoice::restartNewNote(unsigned note, float sampleRate, float frequency, float volume, SampleBuffer *buffer)
+//    {
+//        samplingRate = sampleRate;
+//        leftFilter.updateSampleRate(double(samplingRate));
+//        rightFilter.updateSampleRate(double(samplingRate));
+//
+//        // Reinitialize oscillator for the new sample
+//        oscillator.increment = (buffer->sampleRate / sampleRate) * (frequency / buffer->noteFrequency);
+//        sampleBuffer = buffer;  // Reset buffer for new note
+//
+//        glideSemitones = 0.0f;
+//        if (*glideSecPerOctave != 0.0f && noteFrequency != 0.0 && noteFrequency != frequency)
+//        {
+//            // Glide to the new note if needed
+//            glideSemitones = -12.0f * log2f(frequency / noteFrequency);
+//            if (fabsf(glideSemitones) < 0.01f) glideSemitones = 0.0f;
+//        }
+//
+//        noteFrequency = frequency;
+//        noteNumber = note;
+//
+//        ampEnvelope.restart();  // Retrigger amp envelope
+//        filterEnvelope.restart();  // Retrigger filter envelope
+//        pitchEnvelope.restart();  // Retrigger pitch envelope
+//
+//        noteVolume = volume;
+//        restartVoiceLFOIfNeeded();  // Reset LFO if needed
+//    }
 
-        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency);
-        glideSemitones = 0.0f;
-        if (*glideSecPerOctave != 0.0f && noteFrequency != 0.0 && noteFrequency != frequency)
-        {
-            // prepare to glide
-            glideSemitones = -12.0f * log2f(frequency / noteFrequency);
-            if (fabsf(glideSemitones) < 0.01f) glideSemitones = 0.0f;
-        }
+void SamplerVoice::restartNewNoteLegato(unsigned note, float sampleRate, float frequency) {
+    samplingRate = sampleRate;
+    leftFilter.updateSampleRate(double(samplingRate));
+    rightFilter.updateSampleRate(double(samplingRate));
 
-        pitchEnvelopeSemitones = 0.0f;
+    oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency);
 
-        voiceLFOSemitones = 0.0f;
-
-        noteFrequency = frequency;
-        noteNumber = note;
-        tempNoteVolume = noteVolume;
-        newSampleBuffer = buffer;
-        ampEnvelope.restart();
-        noteVolume = volume;
-        filterEnvelope.restart();
-        pitchEnvelope.restart();
-        restartVoiceLFOIfNeeded();
+    // Smooth glide to the new note frequency
+    glideSemitones = 0.0f;
+    if (*glideSecPerOctave != 0.0f && noteFrequency != 0.0 && noteFrequency != frequency) {
+        glideSemitones = -12.0f * log2f(frequency / noteFrequency);
+        if (fabsf(glideSemitones) < 0.01f) glideSemitones = 0.0f;
     }
 
-    void SamplerVoice::restartNewNoteLegato(unsigned note, float sampleRate, float frequency)
-    {
-        samplingRate = sampleRate;
-        leftFilter.updateSampleRate(double(samplingRate));
-        rightFilter.updateSampleRate(double(samplingRate));
+    // Only adjust pitch, do not reset envelopes (legato behavior)
+    noteFrequency = frequency;
+    noteNumber = note;
+}
 
-        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency);
-        glideSemitones = 0.0f;
-        if (*glideSecPerOctave != 0.0f && noteFrequency != 0.0 && noteFrequency != frequency)
-        {
-            // prepare to glide
-            glideSemitones = -12.0f * log2f(frequency / noteFrequency);
-            if (fabsf(glideSemitones) < 0.01f) glideSemitones = 0.0f;
-        }
-        noteFrequency = frequency;
-        noteNumber = note;
-    }
-
-    void SamplerVoice::restartSameNote(float volume, SampleBuffer *buffer)
-    {
-        tempNoteVolume = noteVolume;
-        newSampleBuffer = buffer;
-        ampEnvelope.restart();
-        noteVolume = volume;
-        filterEnvelope.restart();
-        pitchEnvelope.restart();
-        restartVoiceLFOIfNeeded();
-    }
+//    void SamplerVoice::restartSameNote(float volume, SampleBuffer *buffer)
+//    {
+//        tempNoteVolume = noteVolume;
+//        newSampleBuffer = buffer;
+//        ampEnvelope.restart();
+//        noteVolume = volume;
+//        filterEnvelope.restart();
+//        pitchEnvelope.restart();
+//        restartVoiceLFOIfNeeded();
+//    }
     
     void SamplerVoice::release(bool loopThruRelease)
     {

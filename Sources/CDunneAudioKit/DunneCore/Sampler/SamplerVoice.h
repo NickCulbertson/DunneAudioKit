@@ -103,9 +103,9 @@ namespace DunneCore
                    float frequency,
                    float volume,
                    SampleBuffer *sampleBuffer);
-        void restartNewNote(unsigned noteNumber, float sampleRate, float frequency, float volume, SampleBuffer *buffer);
+//        void restartNewNote(unsigned noteNumber, float sampleRate, float frequency, float volume, SampleBuffer *buffer);
         void restartNewNoteLegato(unsigned noteNumber, float sampleRate, float frequency);
-        void restartSameNote(float volume, SampleBuffer *sampleBuffer);
+//        void restartSameNote(float volume, SampleBuffer *sampleBuffer);
         void release(bool loopThruRelease);
         void stop();
         uint32_t generateInstanceID();
