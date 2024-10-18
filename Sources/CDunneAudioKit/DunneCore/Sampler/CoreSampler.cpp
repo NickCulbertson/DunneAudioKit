@@ -332,7 +332,7 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate) {
     removeHeldNote(noteNumber);
     
     // Tell the sustain pedal logic that this key is being released
-    if (immediate || data->pedalLogic.keyUpAction(noteNumber)) {
+    if ((immediate || data->pedalLogic.keyUpAction(noteNumber)) && !isLegato) {
         // Stop the note normally
         auto buffers = lookupSamples(noteNumber, 0); // Velocity is not relevant for stopping
         
@@ -352,6 +352,8 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate) {
                         pVoice->release(loopThruRelease);  // Put the voice into its release state
                     }
                 }
+            } else {
+                stopAllVoicesMonophonic();
             }
         } else {
             // In legato mode, smoothly glide to the new last held note without retriggering envelopes
@@ -444,6 +446,7 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
 void CoreSampler::stop(unsigned noteNumber, bool immediate)
 {
     // Loop through active notes to find the right instance to stop
+    
     for (auto &entry : activeNotes)
     {
         if (std::get<0>(entry) == noteNumber) // Check if noteNumber matches

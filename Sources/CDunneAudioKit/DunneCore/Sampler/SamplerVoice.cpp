@@ -214,7 +214,7 @@ void SamplerVoice::restartNewNoteLegato(unsigned note, float sampleRate, float f
             pitchOffset += globalLFOValue;  // Modulate pitch
         }
         if (lfoTargetGain > 0.5f) {
-            tempGain += globalLFOValue * 0.1;  // Modulate gain
+            tempGain += globalLFOValue;  // Modulate gain
         }
 
         float pitchOffsetModified = pitchOffset + glideSemitones + pitchEnvelopeSemitones + voiceLFOSemitones;
