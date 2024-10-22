@@ -189,18 +189,26 @@ void SamplerVoice::restartNewNoteLegato(unsigned note, float sampleRate, float f
         if (*glideSecPerOctave != 0.0f && glideSemitones != 0.0f)
         {
             float seconds = sampleCount / samplingRate;
-            float semitones = 12.0f * seconds / *glideSecPerOctave;
+
+            // Calculate semitone change based on the distance remaining (larger distance = faster change)
+            float semitoneChange = 12.0f * seconds / *glideSecPerOctave;
+
+            // Apply non-linear scaling based on the remaining distance (larger distance -> faster movement)
+            //This can be removed if you want a fixed time adjustment
+            semitoneChange *= fabsf(glideSemitones);  // Scale by the remaining distance
+
             if (glideSemitones < 0.0f)
             {
-                glideSemitones += semitones;
-                if (glideSemitones > 0.0f) glideSemitones = 0.0f;
+                glideSemitones += semitoneChange;  // Move toward the target note
+                if (glideSemitones > 0.0f) glideSemitones = 0.0f;  // Stop at the target note
             }
             else
             {
-                glideSemitones -= semitones;
-                if (glideSemitones < 0.0f) glideSemitones = 0.0f;
+                glideSemitones -= semitoneChange;  // Move toward the target note
+                if (glideSemitones < 0.0f) glideSemitones = 0.0f;  // Stop at the target note
             }
         }
+
 
         float pitchCurveAmount = 1.0f; // >1 = faster curve, 0 < curve < 1 = slower curve - make this a parameter
         if (pitchCurveAmount < 0) { pitchCurveAmount = 0; }

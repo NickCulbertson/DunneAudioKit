@@ -368,17 +368,12 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate) {
     }
 }
 
-
 void CoreSampler::stopAllVoicesMonophonic() {
     // Stop all voices and remove them from active notes
     for (int i = 0; i < MAX_POLYPHONY; i++) {
         data->voice[i].stop();  // Stop each voice
     }
-    
-    // Clear the held notes list
-    //        heldNotes.clear();
 }
-
 
 void CoreSampler::sustainPedal(bool down)
 {
@@ -439,21 +434,17 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
     }
 }
 
-
-
-
-
 void CoreSampler::stop(unsigned noteNumber, bool immediate)
 {
     // Loop through active notes to find the right instance to stop
-    
+
     for (auto &entry : activeNotes)
     {
         if (std::get<0>(entry) == noteNumber) // Check if noteNumber matches
         {
             uint32_t instanceID = std::get<1>(entry);
             bool isInRelease = std::get<2>(entry);
-            
+
             // Find the corresponding voice for this instanceID
             DunneCore::SamplerVoice *pVoice = nullptr;
             for (int i = 0; i < MAX_POLYPHONY; i++)
@@ -464,9 +455,9 @@ void CoreSampler::stop(unsigned noteNumber, bool immediate)
                     break;
                 }
             }
-            
+
             if (!pVoice) continue;
-            
+
             if (immediate)
             {
                 // Immediately stop the voice and remove from activeNotes
@@ -489,7 +480,7 @@ void CoreSampler::stopAllVoices()
 {
     // Lock out starting any new notes, and tell Render() to stop all active notes
     stoppingAllVoices = true;
-    
+
     // Wait until Render() has killed all active notes
     bool noteStillSounding = true;
     while (noteStillSounding)
@@ -510,19 +501,25 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
 {
     float *pOutLeft = outBuffers[0];
     float *pOutRight = outBuffers[1];
-    
+
     // Clear output buffers
     for (unsigned i = 0; i < sampleCount; i++) {
         pOutLeft[i] = 0.0f;
         pOutRight[i] = 0.0f;
     }
-    
+
     // Set the global LFO frequency
     data->globalLFO.setFrequency(lfoRate);
     
     // Get the current value from the global LFO
     float globalLFOValue = data->globalLFO.getSample() * lfoDepth;
-    
+
+    // Update vibrato LFO frequency
+    data->vibratoLFO.setFrequency(vibratoFrequency);
+
+    // Modify pitch offset with vibrato
+    float pitchDev = this->pitchOffset + vibratoDepth * data->vibratoLFO.getSample();
+
     // Process each voice (polyphonic voices)
     for (int i = 0; i < MAX_POLYPHONY; i++)
     {
@@ -530,11 +527,10 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
         if (pVoice->noteNumber >= 0)
         {
             // Call the existing voice rendering logic
-            bool shouldStop = pVoice->prepToGetSamples(sampleCount, masterVolume, pitchOffset, cutoffMultiple,
+            bool shouldStop = pVoice->prepToGetSamples(sampleCount, masterVolume, pitchDev, cutoffMultiple,
                                                        keyTracking, cutoffEnvelopeStrength, filterEnvelopeVelocityScaling,
                                                        linearResonance, pitchADSRSemitones, voiceVibratoDepth, voiceVibratoFrequency,
                                                        globalLFOValue, lfoTargetPitchToggle, lfoTargetGainToggle, lfoTargetFilterToggle);
-            
             // If the voice is done, stop it
             if (shouldStop) {
                 stopNote(pVoice->noteNumber, true);
@@ -556,6 +552,7 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
         pOutRight[i] = rightValue;
     }
 }
+
 
 void  CoreSampler::setADSRAttackDurationSeconds(float value) __attribute__((no_sanitize("thread")))
 {
