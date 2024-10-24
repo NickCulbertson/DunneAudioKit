@@ -281,6 +281,7 @@ void CoreSampler::playNote(unsigned noteNumber, unsigned velocity) {
     // Track this note as being held
     addHeldNote(noteNumber);
     
+    
     if (isMonophonic) {
         if (isLegato && anotherKeyWasDown) {
             // Legato mode: glide to the new note without restarting envelopes
@@ -353,7 +354,9 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate) {
                     }
                 }
             } else {
-                stopAllVoicesMonophonic();
+                for (int i = 0; i < MAX_POLYPHONY; i++) {
+                    data->voice[i].release(loopThruRelease);  // Stop each voice
+                }
             }
         } else {
             // In legato mode, smoothly glide to the new last held note without retriggering envelopes
