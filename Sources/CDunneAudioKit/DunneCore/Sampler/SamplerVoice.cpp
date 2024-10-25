@@ -24,7 +24,7 @@ namespace DunneCore
 
     void SamplerVoice::setGain(float gainDB) {
         // Convert gain in dB to linear scale
-        gain = powf(10.0f, gainDB / 20.0f);
+        gain = powf(10.0f, gainDB / 20.0f) - 1.0f;
     }
 
     void SamplerVoice::setPan(float panValue) {
