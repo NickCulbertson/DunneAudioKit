@@ -602,6 +602,11 @@ public class Sampler: Node {
         }
     }
 
+    /// Reset LFO's startpoint
+    public func resetLFOStart() {
+        samplerData?.resetLFOStart()
+    }
+
     public func update(data: SamplerData) {
         akSamplerUpdateCoreSampler(au.dsp, data.coreSamplerRef)
     }
@@ -755,6 +760,11 @@ public struct SamplerData {
     /// Set a custom frequency for a specific MIDI note number
     public func setNoteFrequency(noteNumber: Int, frequency: Float) {
         akCoreSamplerSetNoteFrequency(coreSamplerRef, Int32(noteNumber), frequency)
+    }
+
+    /// Reset LFO's startpoint
+    public func resetLFOStart() {
+        akCoreSamplerResetLFOStart(coreSamplerRef)
     }
 
     /// Builds a full key/velocity map based on min/max note-number and velocity values for all samples

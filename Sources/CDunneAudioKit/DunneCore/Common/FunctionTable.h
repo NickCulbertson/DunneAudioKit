@@ -94,6 +94,11 @@ namespace DunneCore
         
         void setFrequency(float frequency);
         
+        // Method to reset sync point
+        void resetSync(float startPhase = 0.0f) {
+            phase = startPhase; // Reset to the provided starting phase
+        }
+        
         // For typical LFO applications, we simply get one sample at a time.
         inline float getSample()
         {

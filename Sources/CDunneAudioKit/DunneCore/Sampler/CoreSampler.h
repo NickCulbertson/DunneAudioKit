@@ -173,6 +173,7 @@ public:
               unsigned velocity,
               bool anotherKeyWasDown);
     void stop(unsigned noteNumber, bool immediate);
+    void resetLFOStart();
 };
 
 #endif

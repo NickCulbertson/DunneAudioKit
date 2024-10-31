@@ -68,6 +68,10 @@ void akCoreSamplerSetLoopThruRelease(CoreSamplerRef pSampler, bool value) {
     pSampler->setLoopThruRelease(value);
 }
 
+void akCoreSamplerResetLFOStart(CoreSamplerRef pSampler) {
+    pSampler->resetLFOStart();
+}
+
 struct SamplerDSP : DSPBase
 {
     // ramped parameters

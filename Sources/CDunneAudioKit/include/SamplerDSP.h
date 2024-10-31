@@ -71,5 +71,6 @@ void akCoreSamplerSetNoteFrequency(CoreSamplerRef pSampler, int noteNumber, floa
 void akCoreSamplerBuildSimpleKeyMap(CoreSamplerRef pSampler);
 void akCoreSamplerBuildKeyMap(CoreSamplerRef pSampler);
 void akCoreSamplerSetLoopThruRelease(CoreSamplerRef pSampler, bool value);
+void akCoreSamplerResetLFOStart(CoreSamplerRef pSampler);
 CF_EXTERN_C_END
 

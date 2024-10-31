@@ -270,6 +270,11 @@ DunneCore::SamplerVoice *CoreSampler::voicePlayingNote(unsigned noteNumber)
     return 0;
 }
 
+void CoreSampler::resetLFOStart() {
+    data->vibratoLFO.resetSync(); // Reset vibrato LFO to start phase
+    data->globalLFO.resetSync();  // Reset global LFO to start phase
+}
+
 void CoreSampler::playNote(unsigned noteNumber, unsigned velocity) {
     bool anotherKeyWasDown = data->pedalLogic.isAnyKeyDown();
     data->pedalLogic.keyDownAction(noteNumber); // Ensure we mark this key as held
