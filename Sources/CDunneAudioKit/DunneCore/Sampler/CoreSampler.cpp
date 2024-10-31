@@ -515,6 +515,8 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
         pOutLeft[i] = 0.0f;
         pOutRight[i] = 0.0f;
     }
+    
+    float cutoffMul = isFilterEnabled ? cutoffMultiple : -1.0f;
 
     // Set the global LFO frequency
     data->globalLFO.setFrequency(lfoRate);
@@ -535,7 +537,7 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
         if (pVoice->noteNumber >= 0)
         {
             // Call the existing voice rendering logic
-            bool shouldStop = pVoice->prepToGetSamples(sampleCount, masterVolume, pitchDev, cutoffMultiple,
+            bool shouldStop = pVoice->prepToGetSamples(sampleCount, masterVolume, pitchDev, cutoffMul,
                                                        keyTracking, cutoffEnvelopeStrength, filterEnvelopeVelocityScaling,
                                                        linearResonance, pitchADSRSemitones, voiceVibratoDepth, voiceVibratoFrequency,
                                                        globalLFOValue, lfoTargetPitchToggle, lfoTargetGainToggle, lfoTargetFilterToggle);
