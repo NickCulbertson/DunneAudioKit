@@ -418,42 +418,59 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
 void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWasDown)
 {
     if (stoppingAllVoices) return;
-    
-    // Get the frequency for the current note
+
     float noteFrequency = data->tuningTable[noteNumber];
-    
-    // Look up the samples (regions) mapped to the note number and velocity
     auto samples = lookupSamples(noteNumber, velocity);
-    if (samples.empty()) return;  // No samples mapped for this note/velocity combination, so exit
-    
+    if (samples.empty()) return;
+
     for (auto* pBuf : samples)
     {
-        // Apply detune in cents to calculate the final frequency for the sample
         float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
         float detunedFrequency = noteFrequency * detuneFactor;
-        
-        // Look for a free voice
+
+        DunneCore::SamplerVoice* pVoice = nullptr;
+
+        // Find an inactive voice or prepare to steal one if all voices are active
         for (int i = 0; i < MAX_POLYPHONY; i++)
         {
-            DunneCore::SamplerVoice *pVoice = &data->voice[i];
-            if (pVoice->noteNumber < 0)  // Only use inactive voices
-            {
-                // Start the voice with the calculated frequency and volume
-                pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
-                
-                // Set the per-note gain and pan values from the buffer
-                pVoice->setGain(pBuf->volume);
-                pVoice->setPan(pBuf->pan);
-                
-                lastPlayedNoteNumber = noteNumber;
-                
-                // Track the active note for voice stealing or further logic
-                activeNotes.push_back({noteNumber, pVoice->instanceID, false});
-                break;  // Stop looking for a voice, as we have successfully triggered one
+            if (data->voice[i].noteNumber < 0) {
+                pVoice = &data->voice[i];
+                break;
             }
+        }
+
+        // If all voices are active, implement voice-stealing
+        if (!pVoice)
+        {
+            // Choose the oldest note (first element in activeNotes)
+            auto& oldestNote = activeNotes.front();
+            uint32_t instanceID = std::get<1>(oldestNote);
+
+            for (int i = 0; i < MAX_POLYPHONY; i++)
+            {
+                if (data->voice[i].instanceID == instanceID)
+                {
+                    pVoice = &data->voice[i];
+                    break;
+                }
+            }
+            pVoice->stop();  // Stop the oldest voice to free up a slot
+            activeNotes.erase(activeNotes.begin());  // Remove the oldest note from activeNotes
+        }
+
+        // Start the selected voice
+        if (pVoice)
+        {
+            pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
+            pVoice->setGain(pBuf->volume);
+            pVoice->setPan(pBuf->pan);
+
+            lastPlayedNoteNumber = noteNumber;
+            activeNotes.push_back({noteNumber, pVoice->instanceID, false});  // Add the new note to the back
         }
     }
 }
+
 
 void CoreSampler::stop(unsigned noteNumber, bool immediate)
 {
