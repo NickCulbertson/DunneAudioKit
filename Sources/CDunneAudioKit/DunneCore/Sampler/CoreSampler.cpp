@@ -8,38 +8,39 @@
 #include <math.h>
 #include <list>
 
-// number of voices
+// Number of voices
 #define MAX_POLYPHONY 64
 
 // MIDI offers 128 distinct note numbers
 #define MIDI_NOTENUMBERS 128
 
-// Convert MIDI note to Hz, for 12-tone equal temperament
-#define NOTE_HZ(midiNoteNumber) ( 440.0f * pow(2.0f, ((midiNoteNumber) - 69.0f)/12.0f) )
+// Convert MIDI note to Hz for 12-tone equal temperament
+#define NOTE_HZ(midiNoteNumber) (440.0f * pow(2.0f, ((midiNoteNumber) - 69.0f) / 12.0f))
 
-struct CoreSampler::InternalData {
-    // list of (pointers to) all loaded samples
+struct CoreSampler::InternalData
+{
+    // List of (pointers to) all loaded samples
     std::list<DunneCore::KeyMappedSampleBuffer*> sampleBufferList;
     
-    // maps MIDI note numbers to "closest" samples (all velocity layers)
+    // Maps MIDI note numbers to "closest" samples (all velocity layers)
     std::list<DunneCore::KeyMappedSampleBuffer*> keyMap[MIDI_NOTENUMBERS];
     
+    // Envelope parameters
     DunneCore::AHDSHREnvelopeParameters ampEnvelopeParameters;
     DunneCore::ADSREnvelopeParameters filterEnvelopeParameters;
     DunneCore::ADSREnvelopeParameters pitchEnvelopeParameters;
     
-    // table of voice resources
+    // Voice resources
     DunneCore::SamplerVoice voice[MAX_POLYPHONY];
     
-    // one vibrato LFO shared by all voices
+    // Shared vibrato and global LFOs
     DunneCore::FunctionTableOscillator vibratoLFO;
-    
-    // one vibrato LFO shared by all voices
     DunneCore::FunctionTableOscillator globalLFO;
     
+    // Sustain pedal logic
     DunneCore::SustainPedalLogic pedalLogic;
     
-    // tuning table
+    // Tuning table
     float tuningTable[128];
 };
 
@@ -112,6 +113,7 @@ int CoreSampler::init(double sampleRate)
 
 void CoreSampler::deinit()
 {
+    // Optional cleanup if needed
 }
 
 void CoreSampler::unloadAllSamples()
@@ -209,8 +211,10 @@ void CoreSampler::buildSimpleKeyMap()
     // clear out the old mapping entirely
     isKeyMapValid = false;
     for (int i=0; i < MIDI_NOTENUMBERS; i++)
+    {
         data->keyMap[i].clear();
-    
+    }
+
     for (int nn=0; nn < MIDI_NOTENUMBERS; nn++)
     {
         float noteFreq = data->tuningTable[nn];
@@ -244,8 +248,11 @@ void CoreSampler::buildKeyMap(void)
 {
     // clear out the old mapping entirely
     isKeyMapValid = false;
-    for (int i=0; i < MIDI_NOTENUMBERS; i++) data->keyMap[i].clear();
-    
+    for (int i=0; i < MIDI_NOTENUMBERS; i++)
+    {
+        data->keyMap[i].clear();
+    }
+
     for (int nn=0; nn < MIDI_NOTENUMBERS; nn++)
     {
         float noteFreq = data->tuningTable[nn];
@@ -270,12 +277,38 @@ DunneCore::SamplerVoice *CoreSampler::voicePlayingNote(unsigned noteNumber)
     return 0;
 }
 
-void CoreSampler::resetLFOStart() {
+void CoreSampler::resetLFOStart()
+{
     data->vibratoLFO.resetSync(); // Reset vibrato LFO to start phase
     data->globalLFO.resetSync();  // Reset global LFO to start phase
 }
 
-void CoreSampler::playNote(unsigned noteNumber, unsigned velocity) {
+void CoreSampler::addHeldNote(unsigned noteNumber)
+{
+    // Remove the note if it already exists, to ensure proper stacking order
+    heldNotes.erase(std::remove(heldNotes.begin(), heldNotes.end(), noteNumber), heldNotes.end());
+    // Add the new note at the back of the list
+    heldNotes.push_back(noteNumber);
+}
+
+void CoreSampler::removeHeldNote(unsigned noteNumber)
+{
+    heldNotes.erase(std::remove(heldNotes.begin(), heldNotes.end(), noteNumber), heldNotes.end());
+}
+
+unsigned CoreSampler::getLastHeldNote()
+{
+    if (!heldNotes.empty()) {
+        return heldNotes.back();
+    }
+    return -1; // No notes are held
+}
+
+void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
+{
+    // Send prevous note into release state
+    stop(noteNumber, false);
+
     bool anotherKeyWasDown = data->pedalLogic.isAnyKeyDown();
     data->pedalLogic.keyDownAction(noteNumber); // Ensure we mark this key as held
     
@@ -287,50 +320,41 @@ void CoreSampler::playNote(unsigned noteNumber, unsigned velocity) {
     addHeldNote(noteNumber);
     
     
-    if (isMonophonic) {
-        if (isLegato && anotherKeyWasDown) {
+    if (isMonophonic)
+    {
+        if (isLegato && anotherKeyWasDown)
+        {
             // Legato mode: glide to the new note without restarting envelopes
             
-            for (auto* pBuf : buffers) {
-                for (int i = 0; i < MAX_POLYPHONY; i++) {
+            for (auto* pBuf : buffers)
+            {
+                for (int i = 0; i < MAX_POLYPHONY; i++)
+                {
                     DunneCore::SamplerVoice* pVoice = &data->voice[i];
-                    if (pVoice->noteNumber >= 0) {  // Reuse the existing voice for the new note
+                    if (pVoice->noteNumber >= 0)
+                    {  // Reuse the existing voice for the new note
                         pVoice->restartNewNoteLegato(noteNumber, currentSampleRate, data->tuningTable[noteNumber]);
                         // Ensure it's tracked as active
-                        
                     }
                 }
             }
-        } else {
+        }
+        else
+        {
             // Non-legato or no other key was down: stop the current note and start the new one
             stopAllVoicesMonophonic();
             play(noteNumber, velocity, anotherKeyWasDown);
         }
-    } else {
+    }
+    else
+    {
         // Polyphonic mode: play all voices as per current logic
         play(noteNumber, velocity, anotherKeyWasDown);
     }
 }
 
-void CoreSampler::addHeldNote(unsigned noteNumber) {
-    // Remove the note if it already exists, to ensure proper stacking order
-    heldNotes.erase(std::remove(heldNotes.begin(), heldNotes.end(), noteNumber), heldNotes.end());
-    // Add the new note at the back of the list
-    heldNotes.push_back(noteNumber);
-}
-
-void CoreSampler::removeHeldNote(unsigned noteNumber) {
-    heldNotes.erase(std::remove(heldNotes.begin(), heldNotes.end(), noteNumber), heldNotes.end());
-}
-
-unsigned CoreSampler::getLastHeldNote() {
-    if (!heldNotes.empty()) {
-        return heldNotes.back();
-    }
-    return -1; // No notes are held
-}
-
-void CoreSampler::stopNote(unsigned noteNumber, bool immediate) {
+void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
+{
     // Get the last held note before removing the current note
     unsigned lastNote = getLastHeldNote();
     
@@ -338,67 +362,56 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate) {
     removeHeldNote(noteNumber);
     
     // Tell the sustain pedal logic that this key is being released
-    if ((immediate || data->pedalLogic.keyUpAction(noteNumber)) && !isLegato) {
+    if ((immediate || data->pedalLogic.keyUpAction(noteNumber)) && !isLegato)
+    {
         // Stop the note normally
         auto buffers = lookupSamples(noteNumber, 0); // Velocity is not relevant for stopping
         
         // Ensure we stop each region (buffer) only once
-        for (auto* pBuf : buffers) {
+        for (auto* pBuf : buffers)
+        {
             if (pBuf) stop(noteNumber, immediate);
         }
     }
     
-    if (isMonophonic) {
-        if (heldNotes.empty()) {
+    if (isMonophonic)
+    {
+        if (heldNotes.empty())
+        {
             // All notes have been lifted, allow the final note to ring out and finish its release phase
-            if (isLegato) {
-                for (int i = 0; i < MAX_POLYPHONY; i++) {
+            if (isLegato)
+            {
+                for (int i = 0; i < MAX_POLYPHONY; i++)
+                {
                     DunneCore::SamplerVoice* pVoice = &data->voice[i];
-                    if (pVoice->noteNumber >= 0) {  // Check if the voice is currently playing
+                    if (pVoice->noteNumber >= 0)
+                    {  // Check if the voice is currently playing
                         pVoice->release(loopThruRelease);  // Put the voice into its release state
                     }
                 }
-            } else {
-                for (int i = 0; i < MAX_POLYPHONY; i++) {
+            }
+            else
+            {
+                for (int i = 0; i < MAX_POLYPHONY; i++)
+                {
                     data->voice[i].release(loopThruRelease);  // Stop each voice
                 }
             }
-        } else {
+        }
+        else
+        {
             // In legato mode, smoothly glide to the new last held note without retriggering envelopes
             unsigned newLastNote = getLastHeldNote();
-            if (isLegato && newLastNote != (unsigned)-1 && newLastNote != noteNumber) {
+            if (isLegato && newLastNote != (unsigned)-1 && newLastNote != noteNumber)
+            {
                 playNote(newLastNote, 127);  // Glide to the new last held note
-            } else if (!isLegato && newLastNote != lastNote && newLastNote != (unsigned)-1) {
+            }
+            else if (!isLegato && newLastNote != lastNote && newLastNote != (unsigned)-1)
+            {
                 // In non-legato mode, retrigger the new last held note
                 playNote(newLastNote, 127);
             }
         }
-    }
-}
-
-void CoreSampler::stopAllVoicesMonophonic() {
-    // Stop all voices and remove them from active notes
-    for (int i = 0; i < MAX_POLYPHONY; i++) {
-        data->voice[i].stop();  // Stop each voice
-    }
-}
-
-void CoreSampler::sustainPedal(bool down)
-{
-    if (down)
-    {
-        data->pedalLogic.pedalDown();
-    }
-    else
-    {
-        for (int nn = 0; nn < MIDI_NOTENUMBERS; nn++)
-        {
-            if (data->pedalLogic.isNoteSustaining(nn))
-            {
-                stop(nn, false);
-            }
-        }
-        data->pedalLogic.pedalUp();
     }
 }
 
@@ -484,18 +497,62 @@ void CoreSampler::stop(unsigned noteNumber, bool immediate)
     }
 }
 
+void CoreSampler::stopAllVoicesMonophonic() {
+    // Stop all voices and remove them from active notes
+    for (int i = 0; i < MAX_POLYPHONY; i++)
+    {
+        data->voice[i].stop();  // Stop each voice
+    }
+}
+
+void CoreSampler::sustainPedal(bool down)
+{
+    if (down)
+    {
+        data->pedalLogic.pedalDown();
+    }
+    else
+    {
+        for (int nn = 0; nn < MIDI_NOTENUMBERS; nn++)
+                {
+                    // Check if this note is currently held by the pedal
+                    if (data->pedalLogic.isNoteSustaining(nn))
+                    {
+                        // Loop through all voices to find instances of this note that are not in release
+                        for (int i = 0; i < MAX_POLYPHONY; i++)
+                        {
+                            DunneCore::SamplerVoice &voice = data->voice[i];
+                            
+                            // Check if this voice is playing the note and not in its release state
+                            if (voice.noteNumber == nn && !voice.isInRelease)
+                            {
+                                stop(nn, false); // Stop the voice only if it's not already releasing
+                            }
+                        }
+                    }
+                }
+        data->pedalLogic.pedalUp();
+    }
+}
+
 void CoreSampler::stopAllVoices()
 {
     // Lock out starting any new notes, and tell Render() to stop all active notes
     stoppingAllVoices = true;
-
+    heldNotes.clear(); // Ensure all held notes are reset
+    
     // Wait until Render() has killed all active notes
     bool noteStillSounding = true;
     while (noteStillSounding)
     {
         noteStillSounding = false;
         for (int i=0; i < MAX_POLYPHONY; i++)
-            if (data->voice[i].noteNumber >= 0) noteStillSounding = true;
+        {
+            if (data->voice[i].noteNumber >= 0)
+            {
+                noteStillSounding = true;
+            }
+        }
     }
 }
 
@@ -511,7 +568,8 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
     float *pOutRight = outBuffers[1];
 
     // Clear output buffers
-    for (unsigned i = 0; i < sampleCount; i++) {
+    for (unsigned i = 0; i < sampleCount; i++)
+    {
         pOutLeft[i] = 0.0f;
         pOutRight[i] = 0.0f;
     }
@@ -542,9 +600,12 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
                                                        linearResonance, pitchADSRSemitones, voiceVibratoDepth, voiceVibratoFrequency,
                                                        globalLFOValue, lfoTargetPitchToggle, lfoTargetGainToggle, lfoTargetFilterToggle);
             // If the voice is done, stop it
-            if (shouldStop) {
+            if (shouldStop)
+            {
                 stopNote(pVoice->noteNumber, true);
-            } else {
+            }
+            else
+            {
                 pVoice->getSamples(sampleCount, pOutLeft, pOutRight);
             }
         }
@@ -555,7 +616,8 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
     float leftPan = (overallPan <= 0.0f) ? 1.0f : (1.0f - overallPan);
     float rightPan = (overallPan >= 0.0f) ? 1.0f : (1.0f + overallPan);
     
-    for (unsigned i = 0; i < sampleCount; i++) {
+    for (unsigned i = 0; i < sampleCount; i++)
+    {
         float leftValue = pOutLeft[i] * overallGainLinear * leftPan;
         float rightValue = pOutRight[i] * overallGainLinear * rightPan;
         pOutLeft[i] = leftValue;
@@ -673,7 +735,6 @@ float CoreSampler::getFilterReleaseDurationSeconds(void)
 {
     return data->filterEnvelopeParameters.getReleaseDurationSeconds();
 }
-
 
 void  CoreSampler::setPitchAttackDurationSeconds(float value)
 {
