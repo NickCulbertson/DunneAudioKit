@@ -8,11 +8,11 @@ namespace DunneCore
     
     class SustainPedalLogic
     {
+    public:
         bool keyDown[kMidiNoteNumbers];
         bool isPlaying[kMidiNoteNumbers];
         bool pedalIsDown;
         
-    public:
         SustainPedalLogic();
         
         // return true if given note should stop playing

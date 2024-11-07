@@ -7,6 +7,7 @@
 
 #include <math.h>
 #include <list>
+#include <iostream>
 
 // Number of voices
 #define MAX_POLYPHONY 64
@@ -306,10 +307,13 @@ unsigned CoreSampler::getLastHeldNote()
 
 void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
 {
-    // Send prevous note into release state
-    stop(noteNumber, false);
-
     bool anotherKeyWasDown = data->pedalLogic.isAnyKeyDown();
+
+    // Send previous note into release state
+    if (!isLegato) {
+        stop(noteNumber, false);
+    }
+
     data->pedalLogic.keyDownAction(noteNumber); // Ensure we mark this key as held
     
     // Get all samples (regions) corresponding to this note number and velocity
@@ -319,13 +323,14 @@ void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
     // Track this note as being held
     addHeldNote(noteNumber);
     
+    // Debug Message
+    // std::cout << "playNote called for note: " << noteNumber << std::endl;
     
     if (isMonophonic)
     {
         if (isLegato && anotherKeyWasDown)
         {
             // Legato mode: glide to the new note without restarting envelopes
-            
             for (auto* pBuf : buffers)
             {
                 for (int i = 0; i < MAX_POLYPHONY; i++)
@@ -358,11 +363,14 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
     // Get the last held note before removing the current note
     unsigned lastNote = getLastHeldNote();
     
+    // Debug Message
+    //std::cout << "stopNote called for note: " << noteNumber << std::endl;
+    
     // Remove this note from the held notes list
     removeHeldNote(noteNumber);
     
     // Tell the sustain pedal logic that this key is being released
-    if ((immediate || data->pedalLogic.keyUpAction(noteNumber)) && !isLegato)
+    if (immediate || data->pedalLogic.keyUpAction(noteNumber))
     {
         // Stop the note normally
         auto buffers = lookupSamples(noteNumber, 0); // Velocity is not relevant for stopping
@@ -374,20 +382,16 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
         }
     }
     
-    if (isMonophonic)
+    if (isMonophonic && !immediate)
     {
-        if (heldNotes.empty())
+        if (data->pedalLogic.isAnyKeyDown() == false)
         {
             // All notes have been lifted, allow the final note to ring out and finish its release phase
             if (isLegato)
             {
                 for (int i = 0; i < MAX_POLYPHONY; i++)
                 {
-                    DunneCore::SamplerVoice* pVoice = &data->voice[i];
-                    if (pVoice->noteNumber >= 0)
-                    {  // Check if the voice is currently playing
-                        pVoice->release(loopThruRelease);  // Put the voice into its release state
-                    }
+                    data->voice[i].release(loopThruRelease);  // Stop each voice
                 }
             }
             else
@@ -531,15 +535,14 @@ void CoreSampler::sustainPedal(bool down)
     else
     {
         for (int nn = 0; nn < MIDI_NOTENUMBERS; nn++)
-                {
+        {
                     // Check if this note is currently held by the pedal
-                    if (data->pedalLogic.isNoteSustaining(nn))
+            if (data->pedalLogic.isNoteSustaining(nn))
                     {
                         // Loop through all voices to find instances of this note that are not in release
                         for (int i = 0; i < MAX_POLYPHONY; i++)
                         {
                             DunneCore::SamplerVoice &voice = data->voice[i];
-                            
                             // Check if this voice is playing the note and not in its release state
                             if (voice.noteNumber == nn && !voice.isInRelease)
                             {
