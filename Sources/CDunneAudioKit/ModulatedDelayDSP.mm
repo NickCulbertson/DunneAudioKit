@@ -9,8 +9,8 @@
 #import "DSPBase.h"
 #import "ParameterRamper.h"
 
-#import "DunneCore/Modulated Delay/ModulatedDelay_Defines.h"
-#import "DunneCore/Modulated Delay/ModulatedDelay.h"
+#import "ModulatedDelay_Defines.h"
+#import "ModulatedDelay.h"
 
 const float kChorus_DefaultFrequency = kChorusDefaultModFreqHz;
 const float kChorus_DefaultDepth = kChorusDefaultDepth;

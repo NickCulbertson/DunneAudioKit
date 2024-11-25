@@ -2,7 +2,7 @@
 
 #include "DSPBase.h"
 #include "ParameterRamper.h"
-#include "DunneCore/Modulated Delay/StereoDelay.h"
+#include "StereoDelay.h"
 
 enum StereoDelayParameter : AUParameterAddress {
     StereoDelayParameterTime,
@@ -68,8 +68,6 @@ public:
         inBuffers[1]  = (const float *)inputBufferLists[0]->mBuffers[1].mData  + range.start;
         outBuffers[0] = (float *)outputBufferList->mBuffers[0].mData + range.start;
         outBuffers[1] = (float *)outputBufferList->mBuffers[1].mData + range.start;
-        //unsigned inChannelCount = inputBufferLists[0]->mNumberBuffers;
-        //unsigned outChannelCount = outputBufferList->mNumberBuffers;
 
         if (!isStarted)
         {

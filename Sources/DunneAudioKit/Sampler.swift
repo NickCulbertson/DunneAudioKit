@@ -130,7 +130,7 @@ public class Sampler: Node {
         name: "Filter Cutoff",
         address: akGetParameterAddress("SamplerParameterFilterCutoff"),
         defaultValue: 4.0,
-        range: 1 ... 1000,
+        range: 1 ... 22050,
         unit: .rate
     )
 
