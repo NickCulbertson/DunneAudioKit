@@ -158,8 +158,8 @@ void CoreSampler::loadSampleData(SampleDataDescriptor& sdd)
         }
     }
     pBuf->noteNumber = sdd.sampleDescriptor.noteNumber;
-    pBuf->tune = sdd.sampleDescriptor.tune;
-    pBuf->noteFrequency = sdd.sampleDescriptor.noteFrequency;
+    pBuf->tune = 0; //Reset our tune value but apply it to the frequency
+    pBuf->noteFrequency = sdd.sampleDescriptor.noteFrequency * powf(2.0f, sdd.sampleDescriptor.tune / 1200.0f);
     
     // Handle rare case where loopEndPoint is 0 (due to being uninitialized)
     if (sdd.sampleDescriptor.loopEndPoint == 0.0f)
@@ -302,7 +302,7 @@ unsigned CoreSampler::getLastHeldNote()
     if (!heldNotes.empty()) {
         return heldNotes.back();
     }
-    return -1; // No notes are held
+    return -1;
 }
 
 void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
@@ -336,10 +336,10 @@ void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
                 for (int i = 0; i < MAX_POLYPHONY; i++)
                 {
                     DunneCore::SamplerVoice* pVoice = &data->voice[i];
-                    if (pVoice->noteNumber >= 0)
+                    if (pVoice->noteNumber >= 0 && pVoice->sampleBuffer == pBuf)
                     {  // Reuse the existing voice for the new note
+//                        std::cout << "play note: " << noteNumber << std::endl;
                         pVoice->restartNewNoteLegato(noteNumber, currentSampleRate, data->tuningTable[noteNumber]);
-                        // Ensure it's tracked as active
                     }
                 }
             }
@@ -370,7 +370,7 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
     removeHeldNote(noteNumber);
     
     // Tell the sustain pedal logic that this key is being released
-    if (immediate || data->pedalLogic.keyUpAction(noteNumber))
+    if (isLegato && (immediate || !data->pedalLogic.keyUpAction(noteNumber)))
     {
         // Stop the note normally
         auto buffers = lookupSamples(noteNumber, 0); // Velocity is not relevant for stopping
@@ -415,6 +415,19 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
                 // In non-legato mode, retrigger the new last held note
                 playNote(newLastNote, 127);
             }
+        }
+    }
+    
+    // Tell the sustain pedal logic that this key is being released
+    if (immediate || data->pedalLogic.keyUpAction(noteNumber))
+    {
+        // Stop the note normally
+        auto buffers = lookupSamples(noteNumber, 0); // Velocity is not relevant for stopping
+        
+        // Ensure we stop each region (buffer) only once
+        for (auto* pBuf : buffers)
+        {
+            if (pBuf) stop(noteNumber, immediate);
         }
     }
 }
