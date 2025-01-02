@@ -76,6 +76,34 @@ namespace DunneCore
         restartVoiceLFOIfNeeded();
     }
 
+    void SamplerVoice::restartNewNoteMono(unsigned note, float sampleRate, float frequency) {
+        samplingRate = sampleRate;
+        leftFilter.updateSampleRate(double(samplingRate));
+        rightFilter.updateSampleRate(double(samplingRate));
+
+        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency);
+        glideSemitones = 0.0f;
+        if (*glideSecPerOctave != 0.0f && noteFrequency != 0.0 && noteFrequency != frequency)
+        {
+            // prepare to glide
+            glideSemitones = -12.0f * log2f(frequency / noteFrequency);
+            if (fabsf(glideSemitones) < 0.01f) glideSemitones = 0.0f;
+        }
+
+        pitchEnvelopeSemitones = 0.0f;
+
+        voiceLFOSemitones = 0.0f;
+
+        noteFrequency = frequency;
+        noteNumber = note;
+        tempNoteVolume = noteVolume;
+        newSampleBuffer = sampleBuffer;
+        ampEnvelope.restart();
+        filterEnvelope.restart();
+        pitchEnvelope.restart();
+        restartVoiceLFOIfNeeded();
+    }
+
     void SamplerVoice::restartNewNoteLegato(unsigned note, float sampleRate, float frequency)
     {
         samplingRate = sampleRate;
