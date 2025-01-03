@@ -157,9 +157,11 @@ void CoreSampler::loadSampleData(SampleDataDescriptor& sdd)
             pBuf->setData(i, *pData++);
         }
     }
+    
+    // Reset our tune value but apply it to the frequency
     pBuf->noteNumber = sdd.sampleDescriptor.noteNumber;
-    pBuf->tune = 0; //Reset our tune value but apply it to the frequency
-    pBuf->noteFrequency = sdd.sampleDescriptor.noteFrequency * powf(2.0f, sdd.sampleDescriptor.tune / 1200.0f);
+    pBuf->tune = 0;
+    pBuf->noteFrequency = sdd.sampleDescriptor.noteFrequency * powf(2.0f, -sdd.sampleDescriptor.tune / 1200.0f);
     
     // Handle rare case where loopEndPoint is 0 (due to being uninitialized)
     if (sdd.sampleDescriptor.loopEndPoint == 0.0f)
@@ -336,7 +338,7 @@ void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
                 for (int i = 0; i < MAX_POLYPHONY; i++)
                 {
                     DunneCore::SamplerVoice* pVoice = &data->voice[i];
-                    if (pVoice->noteNumber >= 0 && pVoice->sampleBuffer == pBuf)
+                    if (pVoice->noteNumber >= 0)
                     {  // Reuse the existing voice for the new note
                         if (isLegato)
                         {
@@ -373,7 +375,7 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
     removeHeldNote(noteNumber);
     
     // Tell the sustain pedal logic that this key is being released
-    if (immediate || !data->pedalLogic.keyUpAction(noteNumber))
+    if (isMonophonic && (immediate || data->pedalLogic.keyUpAction(noteNumber)))
     {
         // Stop the note normally
         auto buffers = lookupSamples(noteNumber, 0); // Velocity is not relevant for stopping
