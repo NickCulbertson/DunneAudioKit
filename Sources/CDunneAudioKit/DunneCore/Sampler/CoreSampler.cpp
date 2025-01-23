@@ -368,6 +368,8 @@ void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
 
 void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
 {
+    bool anotherKeyWasDown = data->pedalLogic.isAnyKeyDown();
+    
     // Get the last held note before removing the current note
     unsigned lastNote = getLastHeldNote();
     
@@ -375,7 +377,7 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
     removeHeldNote(noteNumber);
     
     // Tell the sustain pedal logic that this key is being released
-    if (isMonophonic && (immediate || data->pedalLogic.keyUpAction(noteNumber)))
+    if (isMonophonic && (immediate || data->pedalLogic.keyUpAction(noteNumber)) && !anotherKeyWasDown)
     {
         // Stop the note normally
         auto buffers = lookupSamples(noteNumber, 0); // Velocity is not relevant for stopping
