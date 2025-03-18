@@ -46,81 +46,134 @@ extension SamplerData {
         do {
             let data = try String(contentsOf: url, encoding: .ascii)
             let lines = data.components(separatedBy: .newlines)
+            
             for line in lines {
                 let trimmed = String(line.trimmingCharacters(in: .whitespacesAndNewlines))
-                if trimmed == "" || trimmed.hasPrefix("//") {
-                    // ignore blank lines and comment lines
+                
+                // Skip empty lines and comments
+                if trimmed.isEmpty || trimmed.hasPrefix("//") {
                     continue
                 }
+                
                 if trimmed.hasPrefix("<group>") {
-                    // parse a <group> line
+                    // Reset group parameters
                     groupTune = 0
                     groupGain = 0.0
                     groupPan = 0.0
-                    for part in trimmed.dropFirst(7).components(separatedBy: .whitespaces) {
-                        if part.hasPrefix("key") {
-                            noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
-                            lowNoteNumber = noteNumber
-                            highNoteNumber = noteNumber
-                        } else if part.hasPrefix("lokey") {
-                            lowNoteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("hikey") {
-                            highNoteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("pitch_keycenter") {
-                            noteNumber = MIDINoteNumber(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("tune") {
-                            groupTune = Int32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("volume") {
-                            groupGain = Float32(part.components(separatedBy: "=")[1]) ?? 0.0
-                        } else if part.hasPrefix("pan") {
-                            groupPan = Float32(part.components(separatedBy: "=")[1]) ?? 0.0
+                    
+                    // Parse group parameters
+                    for part in trimmed.dropFirst(7).components(separatedBy: .whitespaces) where !part.isEmpty {
+                        let keyValue = part.components(separatedBy: "=")
+                        if keyValue.count != 2 { continue }
+                        
+                        let key = keyValue[0]
+                        let value = keyValue[1]
+                        
+                        switch key {
+                        case "key":
+                            if let num = MIDINoteNumber(value) {
+                                noteNumber = num
+                                lowNoteNumber = num
+                                highNoteNumber = num
+                            }
+                        case "lokey":
+                            lowNoteNumber = MIDINoteNumber(value) ?? lowNoteNumber
+                        case "hikey":
+                            highNoteNumber = MIDINoteNumber(value) ?? highNoteNumber
+                        case "pitch_keycenter":
+                            noteNumber = MIDINoteNumber(value) ?? noteNumber
+                        case "tune":
+                            groupTune = Int32(value) ?? 0
+                        case "volume":
+                            groupGain = Float32(value) ?? 0.0
+                        case "pan":
+                            // Clamp pan to valid range
+                            let rawPan = Float32(value) ?? 0.0
+                            groupPan = max(-100.0, min(100.0, rawPan)) / 100.0  // Normalize to -1.0...1.0
+                        default:
+                            break
                         }
                     }
                 }
+                
                 if trimmed.hasPrefix("<region>") {
-                    // parse a <region> line
+                    // Reset region parameters
                     regionTune = 0
                     regionGain = 0.0
                     regionPan = 0.0
-                    for part in trimmed.dropFirst(8).components(separatedBy: .whitespaces) {
-                        if part.hasPrefix("lovel") {
-                            lowVelocity = MIDIVelocity(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("hivel") {
-                            highVelocity = MIDIVelocity(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("loop_mode") {
-                            loopMode = part.components(separatedBy: "=")[1]
-                        } else if part.hasPrefix("loop_start") {
-                            loopStartPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("loop_end") {
-                            loopEndPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("start") {
-                            startPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("end") {
-                            endPoint = Float32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("tune") {
-                            regionTune = Int32(part.components(separatedBy: "=")[1]) ?? 0
-                        } else if part.hasPrefix("volume") {
-                            regionGain = Float32(part.components(separatedBy: "=")[1]) ?? 0.0
-                        } else if part.hasPrefix("pan") {
-                            regionPan = Float32(part.components(separatedBy: "=")[1]) ?? 0.0
-                        }  else if part.hasPrefix("sample") {
-                            sample = trimmed.components(separatedBy: "sample=")[1]
+                    sample = ""
+                    
+                    // Default to values from last group
+                    loopMode = "no_loop"
+                    loopStartPoint = 0
+                    loopEndPoint = 0
+                    startPoint = 0
+                    endPoint = 0
+                    
+                    // Parse region parameters
+                    var regionParams = [String: String]()
+                    
+                    for part in trimmed.dropFirst(8).components(separatedBy: .whitespaces) where !part.isEmpty {
+                        let keyValue = part.components(separatedBy: "=")
+                        if keyValue.count != 2 { continue }
+                        
+                        let key = keyValue[0]
+                        let value = keyValue[1]
+                        regionParams[key] = value
+                    }
+                    
+                    // Process sample last, after all other parameters
+                    for (key, value) in regionParams {
+                        switch key {
+                        case "lovel":
+                            lowVelocity = MIDIVelocity(value) ?? 0
+                        case "hivel":
+                            highVelocity = MIDIVelocity(value) ?? 127
+                        case "loop_mode":
+                            loopMode = value
+                        case "loop_start":
+                            loopStartPoint = Float32(value) ?? 0
+                        case "loop_end":
+                            loopEndPoint = Float32(value) ?? 0
+                        case "start":
+                            startPoint = Float32(value) ?? 0
+                        case "end":
+                            endPoint = Float32(value) ?? 0
+                        case "tune":
+                            regionTune = Int32(value) ?? 0
+                        case "volume":
+                            regionGain = Float32(value) ?? 0.0
+                        case "pan":
+                            // Clamp pan to valid range
+                            let rawPan = Float32(value) ?? 0.0
+                            regionPan = max(-100.0, min(100.0, rawPan)) / 100.0  // Normalize to -1.0...1.0
+                        case "sample":
+                            sample = value
+                        default:
+                            break
                         }
                     }
-
+                    
                     // Calculate the total pan, gain, and detune for this region
                     let totalPan = groupPan + regionPan
                     let totalGain = groupGain + regionGain
                     let totalTune = groupTune + regionTune
-
+                    
+                    // Skip if no sample defined
+                    if sample.isEmpty {
+                        Log("Warning: Region without sample defined. Skipping.")
+                        continue
+                    }
+                    
                     let noteFrequency = Float(440.0 * pow(2.0, (Double(noteNumber) - 69.0) / 12.0))
-
+                    
                     let noteLog = "load \(noteNumber) \(noteFrequency) NN range \(lowNoteNumber)-\(highNoteNumber)"
                     Log("\(noteLog) vel \(lowVelocity)-\(highVelocity) \(sample)")
-
+                    
+                    // Create the sample descriptor
                     let sampleDescriptor = SampleDescriptor(
                         noteNumber: Int32(noteNumber),
-                        tune: Int32(totalTune),
+                        tune: totalTune,
                         noteFrequency: noteFrequency,
                         minimumNoteNumber: Int32(lowNoteNumber),
                         maximumNoteNumber: Int32(highNoteNumber),
@@ -134,37 +187,52 @@ extension SamplerData {
                         volume: totalGain,
                         pan: totalPan
                     )
-
+                    
+                    // Load the sample with proper path handling
                     sample = sample.replacingOccurrences(of: "\\", with: "/")
-                    let sampleFileURL = samplesBaseURL
-                        .appendingPathComponent(sample)
+                    let sampleFileURL = samplesBaseURL.appendingPathComponent(sample)
+                    
                     if sample.hasSuffix(".wv") {
+                        // Load compressed WavPack file
                         sampleFileURL.path.withCString { path in
-                            loadCompressedSampleFile(from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor,
-                                                                                path: path))
+                            loadCompressedSampleFile(from: SampleFileDescriptor(
+                                sampleDescriptor: sampleDescriptor,
+                                path: path
+                            ))
                         }
-                    } else {
-                        if sample.hasSuffix(".aif") || sample.hasSuffix(".wav") {
-                            let compressedFileURL = samplesBaseURL
-                                .appendingPathComponent(String(sample.dropLast(4) + ".wv"))
-                            let fileMgr = FileManager.default
-                            if fileMgr.fileExists(atPath: compressedFileURL.path) {
-                                compressedFileURL.path.withCString { path in
-                                    loadCompressedSampleFile(
-                                        from: SampleFileDescriptor(sampleDescriptor: sampleDescriptor,
-                                                                   path: path))
-                                }
-                            } else {
+                    } else if sample.hasSuffix(".aif") || sample.hasSuffix(".wav") {
+                        // Check if a compressed version exists
+                        let compressedFileURL = samplesBaseURL
+                            .appendingPathComponent(String(sample.dropLast(4) + ".wv"))
+                        
+                        let fileMgr = FileManager.default
+                        if fileMgr.fileExists(atPath: compressedFileURL.path) {
+                            // Use compressed version if available
+                            compressedFileURL.path.withCString { path in
+                                loadCompressedSampleFile(from: SampleFileDescriptor(
+                                    sampleDescriptor: sampleDescriptor,
+                                    path: path
+                                ))
+                            }
+                        } else {
+                            // Otherwise load the audio file directly
+                            do {
                                 let sampleFile = try AVAudioFile(forReading: sampleFileURL)
                                 loadAudioFile(from: sampleDescriptor, file: sampleFile)
+                            } catch {
+                                Log("Error loading audio file: \(error.localizedDescription)")
                             }
                         }
+                    } else {
+                        Log("Unsupported sample format: \(sample)")
                     }
                 }
             }
         } catch {
             Log("Could not load SFZ: \(error.localizedDescription)")
         }
+        
+        // Build the key map after all samples are loaded
         buildKeyMap()
     }
 }

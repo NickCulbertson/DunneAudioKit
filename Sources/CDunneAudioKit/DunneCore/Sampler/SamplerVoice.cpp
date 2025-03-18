@@ -236,7 +236,14 @@ namespace DunneCore
             double cutoffFrequency = baseFrequency * (1.0f + cutoffMultiple + cutoffEnvelopeStrength * envStrength * filterEnvelope.getSample());
             if (lfoTargetFilter > 0.5f)
             {
-                cutoffFrequency += globalLFOValue * 2000;
+                // Limit how much the LFO can offset the cutoff
+                float maxLFOFilterOffset = 2000.0f; // Adjust this value as needed
+                float lfoFilterMod = globalLFOValue * maxLFOFilterOffset;
+                
+                // Make sure cutoff never goes below a minimum threshold (e.g., 20Hz)
+                float minCutoffHz = 20.0f;
+                cutoffFrequency = std::max(minCutoffHz, baseFrequency * (1.0f + cutoffMultiple +
+                                   cutoffEnvelopeStrength * envStrength * filterEnvelope.getSample()) + lfoFilterMod);
             }
             leftFilter.setParameters(cutoffFrequency, resLinear);
             rightFilter.setParameters(cutoffFrequency, resLinear);

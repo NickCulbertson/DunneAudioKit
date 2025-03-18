@@ -63,14 +63,29 @@ public:
     /// optionally call this to make samples continue looping after note-release
     void setLoopThruRelease(bool value) { loopThruRelease = value; }
     
+    /// set the playback mode (monophonic/legato)
+    void setMode(bool mono, bool legato);
+    
+    // Note operations
     void playNote(unsigned noteNumber, unsigned velocity);
     void stopNote(unsigned noteNumber, bool immediate);
     void sustainPedal(bool down);
     void addHeldNote(unsigned noteNumber);
     void removeHeldNote(unsigned noteNumber);
     
+    // Helper methods for voice management
+    DunneCore::SamplerVoice* findVoice(unsigned noteNumber);
+    DunneCore::SamplerVoice* findActiveVoice();
+    DunneCore::SamplerVoice* findFreeVoice();
+    
+    // Helper methods for note tracking
+    void updateActiveNoteTracking(uint32_t instanceID, unsigned noteNumber, bool isInRelease);
+    void removeFromActiveNotes(uint32_t instanceID);
+    
+    // Render audio
     void render(unsigned channelCount, unsigned sampleCount, float *outBuffers[]);
 
+    // Amplitude envelope
     void  setADSRAttackDurationSeconds(float value);
     float getADSRAttackDurationSeconds(void);
     void  setADSRHoldDurationSeconds(float value);
@@ -84,6 +99,7 @@ public:
     void  setADSRReleaseDurationSeconds(float value);
     float getADSRReleaseDurationSeconds(void);
 
+    // Filter envelope
     void  setFilterAttackDurationSeconds(float value);
     float getFilterAttackDurationSeconds(void);
     void  setFilterDecayDurationSeconds(float value);
@@ -93,6 +109,7 @@ public:
     void  setFilterReleaseDurationSeconds(float value);
     float getFilterReleaseDurationSeconds(void);
 
+    // Pitch envelope
     void  setPitchAttackDurationSeconds(float value);
     float getPitchAttackDurationSeconds(void);
     void  setPitchDecayDurationSeconds(float value);
