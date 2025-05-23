@@ -1,5 +1,7 @@
 // Copyright AudioKit. All Rights Reserved.
 
+#ifdef __cplusplus
+
 #pragma once
 #include <vector>
 
@@ -33,3 +35,6 @@ namespace DunneCore
     };
     
 }
+#endif
+
+

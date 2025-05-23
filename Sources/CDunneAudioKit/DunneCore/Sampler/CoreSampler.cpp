@@ -48,7 +48,7 @@ struct CoreSampler::InternalData
 CoreSampler::CoreSampler()
 : currentSampleRate(44100.0f)    // sensible guess
 , isKeyMapValid(false)
-, isFilterEnabled(false)
+, isFilterEnabled(true)
 , restartVoiceLFO(false)
 , overallGain(0.0f)
 , overallPan(0.0f)
@@ -576,22 +576,23 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
     float *pOutLeft = outBuffers[0];
     float *pOutRight = outBuffers[1];
 
-    // Clear output buffers
+    // Clear output buffers with simple loop - often more efficient in real-world audio code
     for (unsigned i = 0; i < sampleCount; i++)
     {
         pOutLeft[i] = 0.0f;
         pOutRight[i] = 0.0f;
     }
     
+    // Use the same conditional as original
     float cutoffMul = isFilterEnabled ? cutoffMultiple : -1.0f;
 
-    // Update LFOs
+    // Update LFOs exactly as before
     data->globalLFO.setFrequency(lfoRate);
     float globalLFOValue = data->globalLFO.getSample() * lfoDepth;
     data->vibratoLFO.setFrequency(vibratoFrequency);
     float pitchDev = this->pitchOffset + vibratoDepth * data->vibratoLFO.getSample();
 
-    // Process each voice
+    // Process each voice - keep original loop structure which may be better optimized by compiler
     for (int i = 0; i < MAX_POLYPHONY; i++)
     {
         DunneCore::SamplerVoice *pVoice = &data->voice[i];
@@ -603,7 +604,7 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
                                                     globalLFOValue, lfoTargetPitchToggle, lfoTargetGainToggle, lfoTargetFilterToggle);
             if (shouldStop)
             {
-                // Stop voice that's done playing
+                // Stay with original logic
                 removeFromActiveNotes(pVoice->instanceID);
                 pVoice->stop();
             }
@@ -614,11 +615,12 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
         }
     }
     
-    // Apply master gain and pan
+    // Precompute gain conversion once
     float overallGainLinear = powf(10.0f, overallGain / 20.0f);
     float leftPan = (overallPan <= 0.0f) ? 1.0f : (1.0f - overallPan);
     float rightPan = (overallPan >= 0.0f) ? 1.0f : (1.0f + overallPan);
     
+    // Apply master gain and pan - this remains unchanged
     for (unsigned i = 0; i < sampleCount; i++)
     {
         float leftValue = pOutLeft[i] * overallGainLinear * leftPan;

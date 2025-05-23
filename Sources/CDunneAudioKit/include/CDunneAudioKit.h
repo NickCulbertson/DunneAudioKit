@@ -9,3 +9,8 @@
 
 #import "Sampler_Typedefs.h"
 #import "SamplerDSP.h"
+
+#import "AdjustableDelayLine.h"
+#import "ModulatedDelay_Defines.h"
+#import "ModulatedDelay.h"
+#import "StereoDelay.h"

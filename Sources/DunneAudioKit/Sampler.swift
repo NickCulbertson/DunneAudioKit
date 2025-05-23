@@ -390,7 +390,7 @@ public class Sampler: Node {
         identifier: "filterEnable",
         name: "Filter Enable",
         address: akGetParameterAddress("SamplerParameterFilterEnable"),
-        defaultValue: 0,
+        defaultValue: 1,
         range: 0 ... 1,
         unit: .boolean,
         flags: nonRampFlags
