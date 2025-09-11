@@ -95,6 +95,28 @@ default_path=samples/
 
 This SFZ file is an example of a piano sampler with samples matched note for note in most octaves. Let's go over from top to bottom:
 
+## Supported SFZ Parameters
+
+The sampler supports a comprehensive set of SFZ opcodes in both `<group>` and `<region>` sections:
+
+### Note Mapping
+* `key` - Single key assignment
+* `lokey` / `hikey` - Key range  
+* `pitch_keycenter` - Root note for pitch calculations
+* `lovel` / `hivel` - Velocity range
+
+### Audio Parameters
+* `tune` - Detuning in cents (inherited from group to region)
+* `volume` - Gain adjustment in dB (inherited from group to region)  
+* `pan` - Stereo positioning from -100 to +100 (inherited from group to region)
+
+### Loop Parameters
+* `loop_mode` - Loop behavior (`no_loop`, `loop_continuous`, etc.)
+* `loop_start` / `loop_end` - Loop points in samples or fractions
+* `start` / `end` - Sample playback boundaries
+
+Parameters defined in `<group>` sections are inherited by all subsequent `<region>` sections, with region-specific values taking precedence.
+
 `<control>`
 
 This is a necessary SFZ keyword to denote that this is indeed a SFZ file.
@@ -128,9 +150,24 @@ Lets look at the last 2 lines:
 
 `lokey` and `hikey` allows us to use one sample to map to multiple keys or MIDI notes. `pitch_keycenter` tells us where to center the key or MIDI note for the sample. In these two lines, we are assigning the sample `C5.wv` to MIDI notes (or keys) 72 *through* 80. The sampler will pitch shift the sample in order to accommodate the higher/lower notes. Be aware that small amounts of pitch shifting will be hard to discern, but anything past a Perfect 5th (7 semitones) will start to exhibit pitch shifting artifacts. Check out more information on [`lokey` and `hikey`](https://sfzformat.com/opcodes/hikey), and [`pitch_keycenter`](https://sfzformat.com/opcodes/pitch_keycenter).
 
+## SFZ Parameter Examples
+
+Here's a comprehensive example showing parameter inheritance and velocity layers:
+
+```
+<group> lokey=0 hikey=38 pitch_keycenter=36 tune=50 volume=-6 pan=25
+<region> lovel=0 hivel=63 loop_mode=loop_continuous loop_start=1350 loop_end=3373 sample=soft.wav
+<region> lovel=64 hivel=127 loop_mode=loop_continuous loop_start=1350 loop_end=3373 sample=loud.wav
+```
+
+This example shows:
+- Group-level parameters (`lokey`, `hikey`, `pitch_keycenter`, `tune`, `volume`, `pan`) inherited by both regions
+- Two velocity layers: soft (0-63) and loud (64-127)
+- Loop configuration applied to both regions
+
 **IMPORTANT** 
 
-**In order for the Audiokit `Sampler` to load your samples correctly, in your `<region>` declarations, the sample assignment MUST BE THE LAST ELEMENT of your `<region>` declarations.**
+**In order for the Sampler to load your samples correctly, in your `<region>` declarations, the sample assignment MUST BE THE LAST ELEMENT of your `<region>` declarations.**
 
 `<region>` has other opcodes you can use such as `lovel` and `hivel`, if you do not place your `sample=YOURSAMPLENAME.YOURFILEFORMAT` as the last element in the `<region>` line, the samples will not load!
 

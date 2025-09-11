@@ -14,6 +14,16 @@
 
 Chorus, Flanger, Sampler, Stereo Delay, and Synth for AudioKit, by Shane Dunne.
 
+## Features
+
+### Sampler
+- **Multi-voice polyphonic sampling** with up to 64 concurrent voices
+- **Comprehensive SFZ support** including `tune`, `volume`, `pan`, velocity layers, and loop points
+- **Monophonic and legato playback modes** with last-note priority and smooth transitions
+- **Advanced voice management** with intelligent voice stealing and reuse
+- **Sustain pedal support** with proper note tracking and release behavior
+- **Real-time parameter control** for filters, envelopes, and modulation
+
 ## Documentation
 
 Detailed documentation is provided on [AudioKit's Website](https://audiokit.io/DunneAudioKit/).

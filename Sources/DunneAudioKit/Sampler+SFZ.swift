@@ -229,7 +229,7 @@ extension SamplerData {
                 }
             }
         } catch {
-            Log("Could not load SFZ: \(error.localizedDescription)")
+            Log("Unable to load sound pack. The file may be corrupted or incomplete.")
         }
         
         // Build the key map after all samples are loaded

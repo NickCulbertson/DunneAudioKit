@@ -2,6 +2,16 @@
 
 Platform-independent C++ *DunneCore::Sampler* class and its specialized component classes.
 
+## Playback Modes
+
+The sampler supports multiple playback modes:
+
+* **Polyphonic mode** - Multiple notes can play simultaneously with intelligent voice stealing
+* **Monophonic mode** - Single voice with last-note priority and proper note tracking  
+* **Legato mode** - Smooth note transitions without envelope restarts in monophonic mode
+
+Note tracking is handled through dual systems: `heldNotes` tracks physical key presses while `activeNotes` tracks audio voices with unique instance IDs.
+
 ## Sampler_Typedefs.h
 This file defines three C ``struct``s used in the API for **Sampler**, which can be bridged to Swift. Because this is (Objective-)C code, it does not use the *DunneCore* namespace, instead using the "AK" name prefix used at the Swift level.
 
@@ -29,4 +39,8 @@ Class **SamplerOscillator** is a very lightweight class for scanning through the
 ## SampleBuffer
 Class **SampleBuffer** represents a sample loaded in memory. Class **KeyMappedSampleBuffer** adds metadata about the range of MIDI note numbers and velocity values which should trigger this sample.
 
-Samples can be either mono or stereo, and have an associated MIDI note number (primarily for identification in a group of samples) and an associated pitch in Hz.
+Samples can be either mono or stereo, and have an associated MIDI note number (primarily for identification in a group of samples) and an associated pitch in Hz. Each sample also includes:
+
+* **tune** - Detuning in cents, applied as frequency multiplication
+* **volume** - Linear gain adjustment in dB  
+* **pan** - Stereo positioning from -1.0 (left) to +1.0 (right)
