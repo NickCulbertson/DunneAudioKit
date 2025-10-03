@@ -23,6 +23,16 @@ extension SamplerData {
     ///   - url: File url to the SFZ file
     ///
     public func loadSFZ(url: URL) {
+        loadSFZ(url: url, completion: nil)
+    }
+    
+    /// Load an SFZ at the given location with completion callback
+    ///
+    /// Parameters:
+    ///   - url: File url to the SFZ file
+    ///   - completion: Optional completion handler called when loading finishes
+    ///
+    public func loadSFZ(url: URL, completion: (() -> Void)?) {
         var lowNoteNumber: MIDINoteNumber = 0
         var highNoteNumber: MIDINoteNumber = 127
         var noteNumber: MIDINoteNumber = 60
@@ -234,5 +244,8 @@ extension SamplerData {
         
         // Build the key map after all samples are loaded
         buildKeyMap()
+        
+        // Call completion handler if provided
+        completion?()
     }
 }

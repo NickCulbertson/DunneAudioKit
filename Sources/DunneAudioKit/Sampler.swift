@@ -551,7 +551,11 @@ public class Sampler: Node {
     }
 
     public func loadSFZ(url: URL) {
-        samplerData = SamplerData(sfzURL: url)
+        loadSFZ(url: url, completion: nil)
+    }
+    
+    public func loadSFZ(url: URL, completion: (() -> Void)?) {
+        samplerData = SamplerData(sfzURL: url, completion: completion)
         update(data: samplerData!)
     }
 
@@ -674,6 +678,15 @@ public struct SamplerData {
     /// - Parameter sfzURL: URL of the SFZ sound font file
     public init(sfzURL: URL) {
         loadSFZ(url: sfzURL)
+    }
+    
+    /// Initialize this sampler node with an SFZ style file with completion callback.
+    ///
+    /// - Parameters:
+    ///   - sfzURL: URL of the SFZ sound font file
+    ///   - completion: Optional completion handler called when loading finishes
+    public init(sfzURL: URL, completion: (() -> Void)?) {
+        loadSFZ(url: sfzURL, completion: completion)
     }
 
     /// Initialize this sampler node with SFZ path and file name.
