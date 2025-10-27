@@ -517,20 +517,12 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
 }
 
 void CoreSampler::stopAllVoicesMonophonic() {
-    // Use the same thread-safe approach as stopAllVoices
-    stoppingAllVoices = true;
-    activeNotes.clear();
-    
-    // Wait until Render() has killed all active notes
-    bool noteStillSounding = true;
-    while (noteStillSounding)
-    {
-        noteStillSounding = false;
-        for (int i=0; i < MAX_POLYPHONY; i++)
-            if (data->voice[i].noteNumber >= 0) noteStillSounding = true;
+    for (int i = 0; i < MAX_POLYPHONY; i++) {
+        if (data->voice[i].noteNumber >= 0) {
+            data->voice[i].stop();
+        }
     }
-    
-    stoppingAllVoices = false;
+    activeNotes.clear();
 }
 
 void CoreSampler::sustainPedal(bool down)
@@ -561,19 +553,17 @@ void CoreSampler::sustainPedal(bool down)
 
 void CoreSampler::stopAllVoices()
 {
-    // Lock out starting any new notes, and tell Render() to stop all active notes
     stoppingAllVoices = true;
     heldNotes.clear();
-    activeNotes.clear();
     
-    // Wait until Render() has killed all active notes
-    bool noteStillSounding = true;
-    while (noteStillSounding)
-    {
-        noteStillSounding = false;
-        for (int i=0; i < MAX_POLYPHONY; i++)
-            if (data->voice[i].noteNumber >= 0) noteStillSounding = true;
+    for (int i = 0; i < MAX_POLYPHONY; i++) {
+        if (data->voice[i].noteNumber >= 0) {
+            data->voice[i].stop();
+        }
     }
+    
+    activeNotes.clear();
+    stoppingAllVoices = false;
 }
 
 void CoreSampler::restartVoices()
