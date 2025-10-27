@@ -31,6 +31,7 @@ struct CoreSampler::InternalData
     DunneCore::ADSREnvelopeParameters filterEnvelopeParameters;
     DunneCore::ADSREnvelopeParameters pitchEnvelopeParameters;
     
+    
     // Voice resources
     DunneCore::SamplerVoice voice[MAX_POLYPHONY];
     
@@ -655,7 +656,7 @@ void CoreSampler::stop(unsigned noteNumber, bool immediate)
 void  CoreSampler::setADSRAttackDurationSeconds(float value) __attribute__((no_sanitize("thread")))
 {
     data->ampEnvelopeParameters.setAttackDurationSeconds(value);
-    for (int i = 0; i < MAX_POLYPHONY; i++) data->voice[i].updateAmpAdsrParameters();
+    for (int i = 0; i < MAX_POLYPHONY; i++) data->voice[i].updateAmpAdsrParameters();  // Defer voice updates to render loop
 }
 
 float CoreSampler::getADSRAttackDurationSeconds(void)
