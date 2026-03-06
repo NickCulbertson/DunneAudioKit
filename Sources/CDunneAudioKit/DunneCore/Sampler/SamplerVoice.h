@@ -39,6 +39,11 @@ namespace DunneCore
         /// common glide rate, seconds per octave
         float *glideSecPerOctave;
 
+        /// voice variation parameters (pointers to CoreSampler members)
+        float *voiceDetuneRange;
+        float *voiceStartOffsetRange;
+        float *voicePanSpread;
+
         /// MIDI note number, or -1 if not playing any note
         int noteNumber;
 

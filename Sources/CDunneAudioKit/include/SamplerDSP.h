@@ -50,6 +50,12 @@ typedef NS_ENUM(AUParameterAddress, SamplerParameter)
     SamplerParameterLFOTargetGainEnable,
     SamplerParameterLFOTargetFilterEnable,
 
+    // voice variation parameters (analog modeling)
+    SamplerParameterVoiceDetuneRange,
+    SamplerParameterVoiceStartOffsetRange,
+    SamplerParameterVoicePanSpread,
+    SamplerParameterUnisonVoices,
+
     // ensure this is always last in the list, to simplify parameter addressing
     SamplerParameterRampDuration,
 };

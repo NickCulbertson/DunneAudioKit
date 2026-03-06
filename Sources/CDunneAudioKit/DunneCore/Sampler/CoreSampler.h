@@ -138,8 +138,13 @@ public:
         voiceVibratoDepth, voiceVibratoFrequency, glideRate, lfoRate, lfoDepth;
 
     float lfoTargetPitchToggle, lfoTargetGainToggle, lfoTargetFilterToggle;
-    
-    
+
+    // voice variation parameters (analog modeling)
+    float voiceDetuneRange;      // 0-50 cents, random pitch variation per voice
+    float voiceStartOffsetRange; // 0-1000 samples, random start offset per voice
+    float voicePanSpread;        // 0-100%, random pan spread per voice
+    int unisonVoices;            // 1-8 voices, number of voices to trigger per note
+
     // parameters for mono-mode only
     
     // default false

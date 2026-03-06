@@ -65,6 +65,10 @@ CoreSampler::CoreSampler()
 , lfoTargetPitchToggle(0.0f)
 , lfoTargetGainToggle(0.0f)
 , lfoTargetFilterToggle(0.0f)
+, voiceDetuneRange(0.0f)
+, voiceStartOffsetRange(0.0f)
+, voicePanSpread(0.0f)
+, unisonVoices(1)
 , isMonophonic(false)
 , isLegato(false)
 , portamentoRate(1.0f)
@@ -86,8 +90,11 @@ CoreSampler::CoreSampler()
         pVoice->pitchEnvelope.pParameters = &data->pitchEnvelopeParameters;
         pVoice->noteFrequency = 0.0f;
         pVoice->glideSecPerOctave = &glideRate;
+        pVoice->voiceDetuneRange = &voiceDetuneRange;
+        pVoice->voiceStartOffsetRange = &voiceStartOffsetRange;
+        pVoice->voicePanSpread = &voicePanSpread;
     }
-    
+
     for (int i=0; i < 128; i++)
         data->tuningTable[i] = NOTE_HZ(i);
 }
@@ -458,6 +465,17 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
     auto samples = lookupSamples(noteNumber, velocity);
     if (samples.empty()) return;
 
+    // Duplicate samples for unison voices (disabled in mono mode)
+    if (unisonVoices > 1 && !isMonophonic) {
+        std::vector<DunneCore::KeyMappedSampleBuffer *> unisonSamples;
+        for (int i = 0; i < unisonVoices; i++) {
+            for (auto* pBuf : samples) {
+                unisonSamples.push_back(pBuf);
+            }
+        }
+        samples = unisonSamples;
+    }
+
     for (auto* pBuf : samples)
     {
         float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
@@ -507,10 +525,11 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
 
         // Start the voice
         if (pVoice) {
-            pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
+            // Set base gain and pan BEFORE start() so spread can be applied on top
             pVoice->setGain(pBuf->volume);
             pVoice->setPan(pBuf->pan);
-            
+            pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
+
             lastPlayedNoteNumber = noteNumber;
             activeNotes.push_back({noteNumber, pVoice->instanceID, false});
         }

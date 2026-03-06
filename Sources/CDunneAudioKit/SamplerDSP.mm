@@ -334,6 +334,19 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
         case SamplerParameterLFOTargetFilterEnable:
             sampler->lfoTargetFilterToggle = value > 0.5f;
             break;
+        case SamplerParameterVoiceDetuneRange:
+            sampler->voiceDetuneRange = value;
+            break;
+        case SamplerParameterVoiceStartOffsetRange:
+            sampler->voiceStartOffsetRange = value;
+            break;
+        case SamplerParameterVoicePanSpread:
+            sampler->voicePanSpread = value;
+            break;
+
+        case SamplerParameterUnisonVoices:
+            sampler->unisonVoices = (int)value;
+            break;
     }
 }
 
@@ -426,6 +439,14 @@ float SamplerDSP::getParameter(AUParameterAddress address) __attribute__((no_san
             return sampler->lfoTargetGainToggle ? 1.0f : 0.0f;
         case SamplerParameterLFOTargetFilterEnable:
             return sampler->lfoTargetFilterToggle ? 1.0f : 0.0f;
+        case SamplerParameterVoiceDetuneRange:
+            return sampler->voiceDetuneRange;
+        case SamplerParameterVoiceStartOffsetRange:
+            return sampler->voiceStartOffsetRange;
+        case SamplerParameterVoicePanSpread:
+            return sampler->voicePanSpread;
+        case SamplerParameterUnisonVoices:
+            return (float)sampler->unisonVoices;
     }
     return 0;
 }
@@ -568,3 +589,7 @@ AK_REGISTER_PARAMETER(SamplerParameterLFOTargetPitchEnable)
 AK_REGISTER_PARAMETER(SamplerParameterLFOTargetGainEnable)
 AK_REGISTER_PARAMETER(SamplerParameterLFOTargetFilterEnable)
 AK_REGISTER_PARAMETER(SamplerParameterRampDuration)
+AK_REGISTER_PARAMETER(SamplerParameterVoiceDetuneRange)
+AK_REGISTER_PARAMETER(SamplerParameterVoiceStartOffsetRange)
+AK_REGISTER_PARAMETER(SamplerParameterVoicePanSpread)
+AK_REGISTER_PARAMETER(SamplerParameterUnisonVoices)

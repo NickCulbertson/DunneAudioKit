@@ -44,8 +44,47 @@ namespace DunneCore
     void SamplerVoice::start(unsigned note, float sampleRate, float frequency, float volume, SampleBuffer *buffer)
     {
         sampleBuffer = buffer;
-        oscillator.indexPoint = buffer->startPoint;
-        oscillator.increment = (buffer->sampleRate / sampleRate) * (frequency / buffer->noteFrequency);
+
+        // Random start offset with safe boundary checking
+        float randomOffset = 0;
+        if (*voiceStartOffsetRange > 0) {
+            // Calculate maximum safe offset based on sample boundaries
+            float maxSafeOffset = buffer->endPoint - buffer->startPoint;
+
+            // If looping, also respect loop end point to ensure loop region is reached
+            if (buffer->isLooping && buffer->loopEndPoint > buffer->startPoint) {
+                maxSafeOffset = fminf(maxSafeOffset, buffer->loopEndPoint - buffer->startPoint);
+            }
+
+            // Clamp the range to what's actually safe
+            float effectiveRange = fminf(*voiceStartOffsetRange, maxSafeOffset);
+
+            if (effectiveRange > 0) {
+                randomOffset = rand() % ((int)effectiveRange + 1);
+            }
+        }
+        oscillator.indexPoint = buffer->startPoint + randomOffset;
+
+        // Random detune for analog-style pitch variation
+        float detuneFactor = 1.0f;
+        if (*voiceDetuneRange > 0) {
+            float centDetune = (rand() % ((int)(*voiceDetuneRange * 2) + 1)) - *voiceDetuneRange;
+            detuneFactor = powf(2.0f, centDetune / 1200.0f);
+        }
+
+        // Random pan spread for stereo width
+        if (*voicePanSpread > 0) {
+            // Convert 0-100 spread to 0.0-1.0 range
+            float spreadAmount = *voicePanSpread / 100.0f;
+            // Random pan offset from -spreadAmount to +spreadAmount
+            float randomPanOffset = (rand() % 201 - 100) / 100.0f * spreadAmount;
+            // Add random offset to base pan and clamp to -1.0 to 1.0 range
+            float newPan = pan + randomPanOffset;
+            pan = (newPan < -1.0f) ? -1.0f : (newPan > 1.0f) ? 1.0f : newPan;
+        }
+        // If spread is 0, pan stays at its base value (from SFZ or API)
+
+        oscillator.increment = (buffer->sampleRate / sampleRate) * (frequency / buffer->noteFrequency) * detuneFactor;
         oscillator.multiplier = 1.0;
         oscillator.isLooping = buffer->isLooping;
 

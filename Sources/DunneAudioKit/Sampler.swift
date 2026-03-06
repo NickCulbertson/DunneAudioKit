@@ -537,6 +537,62 @@ public class Sampler: Node {
     /// lfoTargetFilterEnable (boolean, 0.0 for false or 1.0 for true)
     @Parameter(lfoTargetFilterEnableDef) public var lfoTargetFilterEnable: AUValue
 
+    /// Specification details for voiceDetuneRange
+    public static let voiceDetuneRangeDef = NodeParameterDef(
+        identifier: "voiceDetuneRange",
+        name: "Voice Detune Range",
+        address: akGetParameterAddress("SamplerParameterVoiceDetuneRange"),
+        defaultValue: 0,
+        range: 0 ... 50,
+        unit: .generic,
+        flags: nonRampFlags
+    )
+
+    /// Voice Detune Range (cents) - random pitch variation per voice
+    @Parameter(voiceDetuneRangeDef) public var voiceDetuneRange: AUValue
+
+    /// Specification details for voiceStartOffsetRange
+    public static let voiceStartOffsetRangeDef = NodeParameterDef(
+        identifier: "voiceStartOffsetRange",
+        name: "Voice Start Offset Range",
+        address: akGetParameterAddress("SamplerParameterVoiceStartOffsetRange"),
+        defaultValue: 0,
+        range: 0 ... 10000,
+        unit: .generic,
+        flags: nonRampFlags
+    )
+
+    /// Voice Start Offset Range (samples) - random start offset per voice
+    @Parameter(voiceStartOffsetRangeDef) public var voiceStartOffsetRange: AUValue
+
+    /// Specification details for voicePanSpread
+    public static let voicePanSpreadDef = NodeParameterDef(
+        identifier: "voicePanSpread",
+        name: "Voice Pan Spread",
+        address: akGetParameterAddress("SamplerParameterVoicePanSpread"),
+        defaultValue: 0,
+        range: 0 ... 100,
+        unit: .percent,
+        flags: nonRampFlags
+    )
+
+    /// Voice Pan Spread (%) - random pan spread per voice
+    @Parameter(voicePanSpreadDef) public var voicePanSpread: AUValue
+
+    /// Specification details for unisonVoices
+    public static let unisonVoicesDef = NodeParameterDef(
+        identifier: "unisonVoices",
+        name: "Unison Voices",
+        address: akGetParameterAddress("SamplerParameterUnisonVoices"),
+        defaultValue: 1,
+        range: 1 ... 8,
+        unit: .generic,
+        flags: nonRampFlags
+    )
+
+    /// Unison Voices (1-8) - number of voices to trigger per note
+    @Parameter(unisonVoicesDef) public var unisonVoices: AUValue
+
     // MARK: - Initialization
 
     /// Initialize without any descriptors
