@@ -347,6 +347,12 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
         case SamplerParameterUnisonVoices:
             sampler->unisonVoices = (int)value;
             break;
+        case SamplerParameterUnisonDetune:
+            sampler->unisonDetune = value;
+            break;
+        case SamplerParameterUnisonSpread:
+            sampler->unisonSpread = value;
+            break;
     }
 }
 
@@ -447,6 +453,10 @@ float SamplerDSP::getParameter(AUParameterAddress address) __attribute__((no_san
             return sampler->voicePanSpread;
         case SamplerParameterUnisonVoices:
             return (float)sampler->unisonVoices;
+        case SamplerParameterUnisonDetune:
+            return sampler->unisonDetune;
+        case SamplerParameterUnisonSpread:
+            return sampler->unisonSpread;
     }
     return 0;
 }
@@ -593,3 +603,5 @@ AK_REGISTER_PARAMETER(SamplerParameterVoiceDetuneRange)
 AK_REGISTER_PARAMETER(SamplerParameterVoiceStartOffsetRange)
 AK_REGISTER_PARAMETER(SamplerParameterVoicePanSpread)
 AK_REGISTER_PARAMETER(SamplerParameterUnisonVoices)
+AK_REGISTER_PARAMETER(SamplerParameterUnisonDetune)
+AK_REGISTER_PARAMETER(SamplerParameterUnisonSpread)

@@ -55,9 +55,14 @@ namespace DunneCore
     
         /// track voice instance
         uint32_t instanceID;
-        
+
         static uint32_t nextInstanceID;
-    
+
+        /// voice group tracking for unison
+        uint32_t unisonGroupID;      // 0 = not in group, >0 = group ID
+        int unisonIndex;             // Position in unison group (0 to N-1)
+        int totalUnisonVoices;       // Total voices in this unison group
+
         /// per voice gain
         float gain;
     

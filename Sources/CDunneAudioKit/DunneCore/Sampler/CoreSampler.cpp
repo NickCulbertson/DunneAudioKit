@@ -69,6 +69,8 @@ CoreSampler::CoreSampler()
 , voiceStartOffsetRange(0.0f)
 , voicePanSpread(0.0f)
 , unisonVoices(1)
+, unisonDetune(0.0f)
+, unisonSpread(0.0f)
 , isMonophonic(false)
 , isLegato(false)
 , portamentoRate(1.0f)
@@ -122,6 +124,24 @@ DunneCore::SamplerVoice* CoreSampler::findActiveVoice() {
         }
     }
     return nullptr;
+}
+
+// Find all voices in the active unison group (excluding releasing tails)
+std::vector<DunneCore::SamplerVoice*> CoreSampler::findActiveVoiceGroup() {
+    std::vector<DunneCore::SamplerVoice*> voiceGroup;
+
+    // Find the currently sounding (non-releasing) voices
+    // This is critical for mono mode to work correctly with release > 0
+    for (int i = 0; i < MAX_POLYPHONY; i++) {
+        DunneCore::SamplerVoice* pVoice = &data->voice[i];
+        if (pVoice->noteNumber >= 0 &&
+            pVoice->sampleBuffer != nullptr &&
+            !pVoice->ampEnvelope.isReleasing()) {
+            voiceGroup.push_back(pVoice);
+        }
+    }
+
+    return voiceGroup;
 }
 
 // Find a free voice
@@ -379,19 +399,41 @@ void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
     bool anotherKeyWasDown = heldNotes.size() > 1;
     
     if (isMonophonic) {
-        // Mono mode: find active voice to update
-        DunneCore::SamplerVoice* pActiveVoice = findActiveVoice();
-        
-        if (pActiveVoice && anotherKeyWasDown) {
-            // Update existing voice
-            if (isLegato) {
-                pActiveVoice->restartNewNoteLegato(noteNumber, currentSampleRate, data->tuningTable[noteNumber]);
-            } else {
-                pActiveVoice->restartNewNoteMono(noteNumber, currentSampleRate, data->tuningTable[noteNumber]);
+        // In mono mode, kill any releasing voices to prevent overlap with new note
+        for (int i = 0; i < MAX_POLYPHONY; i++) {
+            DunneCore::SamplerVoice* pVoice = &data->voice[i];
+            if (pVoice->noteNumber >= 0 && pVoice->ampEnvelope.isReleasing()) {
+                pVoice->noteNumber = -1;
+                removeFromActiveNotes(pVoice->instanceID);
             }
-            updateActiveNoteTracking(pActiveVoice->instanceID, noteNumber, false);
+        }
+
+        // Mono mode: find active voice group to update
+        auto activeVoiceGroup = findActiveVoiceGroup();
+
+        if (!activeVoiceGroup.empty()) {
+            // Voices are playing - retarget them with new start offset
+            float baseFrequency = data->tuningTable[noteNumber];
+
+            for (auto* pVoice : activeVoiceGroup) {
+                // Recalculate detune offset for this voice's position
+                float position = 0.0f;
+                if (pVoice->totalUnisonVoices > 1) {
+                    position = -1.0f + (2.0f * pVoice->unisonIndex / (pVoice->totalUnisonVoices - 1));
+                }
+                float unisonDetuneOffset = position * unisonDetune;
+                float detuneFactor = powf(2.0f, unisonDetuneOffset / 1200.0f);
+                float detunedFrequency = baseFrequency * detuneFactor;
+
+                if (isLegato) {
+                    pVoice->restartNewNoteLegato(noteNumber, currentSampleRate, detunedFrequency);
+                } else {
+                    pVoice->restartNewNoteMono(noteNumber, currentSampleRate, detunedFrequency);
+                }
+                updateActiveNoteTracking(pVoice->instanceID, noteNumber, false);
+            }
         } else {
-            // Start fresh
+            // No active voices - start fresh
             play(noteNumber, velocity, anotherKeyWasDown);
         }
     } else {
@@ -407,33 +449,61 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
     
     // Get current state
     bool wasHeld = std::find(heldNotes.begin(), heldNotes.end(), noteNumber) != heldNotes.end();
-    DunneCore::SamplerVoice* playingVoice = findVoice(noteNumber);
-    bool isPlayingNote = (playingVoice != nullptr);
-    
+
     // Remove from held notes and get next note
     removeHeldNote(noteNumber);
     unsigned newLastHeldNote = getLastHeldNote();
-    
+
     // Handle monophonic mode
-    if (isMonophonic && wasHeld && !immediate && isPlayingNote) {
+    if (isMonophonic && wasHeld && !immediate) {
+        // Find all currently sounding voices (excludes releasing tails)
+        auto voiceGroup = findActiveVoiceGroup();
+
+        // If there are no active non-releasing voices, nothing to do
+        if (voiceGroup.empty()) {
+            return;
+        }
+
+        // Find what note is CURRENTLY playing
+        int currentPlaying = voiceGroup[0]->noteNumber;
+
+        // If we released a key that is NOT the currently sounding note, ignore.
+        // (This prevents "release old key retriggers current key" and stuck notes)
+        if (currentPlaying != (int)noteNumber) {
+            return;
+        }
+
         if (newLastHeldNote != (unsigned)-1 && newLastHeldNote != noteNumber) {
-            // Transition to next note
-            float nextNoteFrequency = data->tuningTable[newLastHeldNote];
-            
-            if (isLegato) {
-                playingVoice->restartNewNoteLegato(newLastHeldNote, currentSampleRate, nextNoteFrequency);
-            } else {
-                playingVoice->restartNewNoteMono(newLastHeldNote, currentSampleRate, nextNoteFrequency);
+            // Transition all voices in the group to next note, preserving detune offsets
+            float baseFrequency = data->tuningTable[newLastHeldNote];
+
+            for (auto* pVoice : voiceGroup) {
+                // Recalculate detune offset for this voice's position in the unison group
+                float position = 0.0f;
+                if (pVoice->totalUnisonVoices > 1) {
+                    position = -1.0f + (2.0f * pVoice->unisonIndex / (pVoice->totalUnisonVoices - 1));
+                }
+                float unisonDetuneOffset = position * unisonDetune;
+                float detuneFactor = powf(2.0f, unisonDetuneOffset / 1200.0f);
+                float detunedFrequency = baseFrequency * detuneFactor;
+
+                if (isLegato) {
+                    pVoice->restartNewNoteLegato(newLastHeldNote, currentSampleRate, detunedFrequency);
+                } else {
+                    pVoice->restartNewNoteMono(newLastHeldNote, currentSampleRate, detunedFrequency);
+                }
+
+                updateActiveNoteTracking(pVoice->instanceID, newLastHeldNote, false);
+                pVoice->noteNumber = newLastHeldNote;
+                pVoice->noteFrequency = detunedFrequency;
             }
-            
-            updateActiveNoteTracking(playingVoice->instanceID, newLastHeldNote, false);
-            playingVoice->noteNumber = newLastHeldNote;
-            playingVoice->noteFrequency = nextNoteFrequency;
             return;
         } else if (newLastHeldNote == (unsigned)-1) {
-            // No more notes, release the voice
-            playingVoice->release(loopThruRelease);
-            updateActiveNoteTracking(playingVoice->instanceID, noteNumber, true);
+            // No more notes, release all voices in the group
+            for (auto* pVoice : voiceGroup) {
+                pVoice->release(loopThruRelease);
+                updateActiveNoteTracking(pVoice->instanceID, noteNumber, true);
+            }
             return;
         }
         return;
@@ -465,8 +535,15 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
     auto samples = lookupSamples(noteNumber, velocity);
     if (samples.empty()) return;
 
-    // Duplicate samples for unison voices (disabled in mono mode)
-    if (unisonVoices > 1 && !isMonophonic) {
+    // Track original sample count before unison duplication
+    int originalSampleCount = (int)samples.size();
+
+    // Generate unique group ID for this unison group
+    static uint32_t nextGroupID = 1;
+    uint32_t currentGroupID = nextGroupID++;
+
+    // Duplicate samples for unison voices
+    if (unisonVoices > 1) {
         std::vector<DunneCore::KeyMappedSampleBuffer *> unisonSamples;
         for (int i = 0; i < unisonVoices; i++) {
             for (auto* pBuf : samples) {
@@ -476,22 +553,43 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
         samples = unisonSamples;
     }
 
-    for (auto* pBuf : samples)
+    int totalVoices = (int)samples.size();
+
+    for (int idx = 0; idx < totalVoices; idx++)
     {
-        float detuneFactor = powf(2.0f, pBuf->tune / 1200.0f);
+        auto* pBuf = samples[idx];
+
+        // Calculate which unison voice this is (0 to unisonVoices-1)
+        int currentUnisonIndex = idx / originalSampleCount;
+
+        // Calculate symmetric position: -1.0 to +1.0
+        // For 1 voice: position = 0.0 (centered)
+        // For 2 voices: positions = -1.0, +1.0
+        // For 3 voices: positions = -1.0, 0.0, +1.0
+        float position = 0.0f;
+        if (unisonVoices > 1) {
+            position = -1.0f + (2.0f * currentUnisonIndex / (unisonVoices - 1));
+        }
+
+        // Apply symmetric unison detune (in cents)
+        float unisonDetuneOffset = position * unisonDetune;
+
+        // Apply symmetric unison pan spread (0-100% -> -1.0 to +1.0)
+        // Use constant power curve for more natural stereo spread
+        float positionCurved = (position >= 0.0f) ? sqrtf(position) : -sqrtf(-position);
+        float unisonPanOffset = positionCurved * (unisonSpread / 100.0f);
+
+        // Calculate final frequency with both SFZ tune and unison detune
+        float totalDetuneCents = pBuf->tune + unisonDetuneOffset;
+        float detuneFactor = powf(2.0f, totalDetuneCents / 1200.0f);
         float detunedFrequency = noteFrequency * detuneFactor;
         DunneCore::SamplerVoice* pVoice = nullptr;
 
-        // First try to find an appropriate voice
-        if (isMonophonic) {
-            pVoice = findActiveVoice();
-        }
-        if (!pVoice) {
-            pVoice = findFreeVoice();
-        }
+        // Find a free voice (mono voice reuse is handled in playNote, not here)
+        pVoice = findFreeVoice();
 
-        // Voice stealing if needed (polyphonic only)
-        if (!pVoice && !isMonophonic) {
+        // Voice stealing if needed
+        if (!pVoice) {
             // Try to steal a voice in release phase
             for (auto it = activeNotes.begin(); it != activeNotes.end(); ++it) {
                 if (std::get<2>(*it)) { // In release phase
@@ -507,8 +605,8 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
                 }
             }
 
-            // If needed, steal oldest note
-            if (!pVoice && !activeNotes.empty()) {
+            // If needed, steal oldest note (polyphonic only)
+            if (!pVoice && !isMonophonic && !activeNotes.empty()) {
                 auto& oldestNote = activeNotes.front();
                 uint32_t instanceID = std::get<1>(oldestNote);
 
@@ -525,9 +623,22 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
 
         // Start the voice
         if (pVoice) {
-            // Set base gain and pan BEFORE start() so spread can be applied on top
-            pVoice->setGain(pBuf->volume);
-            pVoice->setPan(pBuf->pan);
+            // Set voice group metadata
+            pVoice->unisonGroupID = currentGroupID;
+            pVoice->unisonIndex = currentUnisonIndex;
+            pVoice->totalUnisonVoices = unisonVoices;
+
+            // Calculate final pan with unison spread
+            float finalPan = pBuf->pan + unisonPanOffset;
+            finalPan = fmaxf(-1.0f, fminf(1.0f, finalPan)); // Clamp to valid range
+
+            // Apply automatic gain compensation for unison voices to prevent clipping
+            float gainCompensation = (unisonVoices > 1) ? (1.0f / unisonVoices) : 1.0f;
+            float compensatedVolume = pBuf->volume * gainCompensation;
+
+            // Set base gain and pan BEFORE start() so random spread can be applied on top
+            pVoice->setGain(compensatedVolume);
+            pVoice->setPan(finalPan);
             pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
 
             lastPlayedNoteNumber = noteNumber;
@@ -553,16 +664,21 @@ void CoreSampler::sustainPedal(bool down)
     }
     else
     {
+        // Release all voices that were being sustained
         for (int nn = 0; nn < MIDI_NOTENUMBERS; nn++)
         {
             if (data->pedalLogic.isNoteSustaining(nn))
             {
+                // Pedal up must release ALL active instances of this note,
+                // especially in unison mode where multiple voices exist per note
                 for (int i = 0; i < MAX_POLYPHONY; i++)
                 {
                     DunneCore::SamplerVoice &voice = data->voice[i];
-                    if (voice.noteNumber == nn && !voice.isInRelease)
+                    if (voice.noteNumber == nn)
                     {
-                        stop(nn, false);
+                        // Don't hard stop - let tails ring out naturally
+                        voice.release(loopThruRelease);
+                        updateActiveNoteTracking(voice.instanceID, nn, true);
                     }
                 }
             }

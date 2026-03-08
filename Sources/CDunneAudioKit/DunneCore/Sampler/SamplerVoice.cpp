@@ -120,7 +120,47 @@ namespace DunneCore
         leftFilter.updateSampleRate(double(samplingRate));
         rightFilter.updateSampleRate(double(samplingRate));
 
-        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency);
+        // Reset sample position with random start offset (same as start() method)
+        float randomOffset = 0;
+        if (*voiceStartOffsetRange > 0) {
+            // Calculate maximum safe offset based on sample boundaries
+            float maxSafeOffset = sampleBuffer->endPoint - sampleBuffer->startPoint;
+
+            // If looping, also respect loop end point to ensure loop region is reached
+            if (sampleBuffer->isLooping && sampleBuffer->loopEndPoint > sampleBuffer->startPoint) {
+                maxSafeOffset = fminf(maxSafeOffset, sampleBuffer->loopEndPoint - sampleBuffer->startPoint);
+            }
+
+            // Clamp the range to what's actually safe
+            float effectiveRange = fminf(*voiceStartOffsetRange, maxSafeOffset);
+
+            if (effectiveRange > 0) {
+                randomOffset = rand() % ((int)effectiveRange + 1);
+            }
+        }
+        oscillator.indexPoint = sampleBuffer->startPoint + randomOffset;
+
+        // Random detune for analog-style pitch variation
+        float detuneFactor = 1.0f;
+        if (*voiceDetuneRange > 0) {
+            float centDetune = (rand() % ((int)(*voiceDetuneRange * 2) + 1)) - *voiceDetuneRange;
+            detuneFactor = powf(2.0f, centDetune / 1200.0f);
+        }
+
+        // Random pan spread for stereo width
+        if (*voicePanSpread > 0) {
+            // Convert 0-100 spread to 0.0-1.0 range
+            float spreadAmount = *voicePanSpread / 100.0f;
+            // Random pan offset from -spreadAmount to +spreadAmount
+            float randomPanOffset = (rand() % 201 - 100) / 100.0f * spreadAmount;
+            // Add random offset to base pan and clamp to -1.0 to 1.0 range
+            float newPan = pan + randomPanOffset;
+            pan = (newPan < -1.0f) ? -1.0f : (newPan > 1.0f) ? 1.0f : newPan;
+        }
+
+        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency) * detuneFactor;
+        oscillator.multiplier = 1.0;
+        oscillator.isLooping = sampleBuffer->isLooping;
         glideSemitones = 0.0f;
         if (*glideSecPerOctave != 0.0f && noteFrequency != 0.0 && noteFrequency != frequency)
         {
@@ -149,7 +189,47 @@ namespace DunneCore
         leftFilter.updateSampleRate(double(samplingRate));
         rightFilter.updateSampleRate(double(samplingRate));
 
-        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency);
+        // Reset sample position with random start offset (for mono legato)
+        float randomOffset = 0;
+        if (*voiceStartOffsetRange > 0) {
+            // Calculate maximum safe offset based on sample boundaries
+            float maxSafeOffset = sampleBuffer->endPoint - sampleBuffer->startPoint;
+
+            // If looping, also respect loop end point to ensure loop region is reached
+            if (sampleBuffer->isLooping && sampleBuffer->loopEndPoint > sampleBuffer->startPoint) {
+                maxSafeOffset = fminf(maxSafeOffset, sampleBuffer->loopEndPoint - sampleBuffer->startPoint);
+            }
+
+            // Clamp the range to what's actually safe
+            float effectiveRange = fminf(*voiceStartOffsetRange, maxSafeOffset);
+
+            if (effectiveRange > 0) {
+                randomOffset = rand() % ((int)effectiveRange + 1);
+            }
+        }
+        oscillator.indexPoint = sampleBuffer->startPoint + randomOffset;
+
+        // Random detune for analog-style pitch variation
+        float detuneFactor = 1.0f;
+        if (*voiceDetuneRange > 0) {
+            float centDetune = (rand() % ((int)(*voiceDetuneRange * 2) + 1)) - *voiceDetuneRange;
+            detuneFactor = powf(2.0f, centDetune / 1200.0f);
+        }
+
+        // Random pan spread for stereo width
+        if (*voicePanSpread > 0) {
+            // Convert 0-100 spread to 0.0-1.0 range
+            float spreadAmount = *voicePanSpread / 100.0f;
+            // Random pan offset from -spreadAmount to +spreadAmount
+            float randomPanOffset = (rand() % 201 - 100) / 100.0f * spreadAmount;
+            // Add random offset to base pan and clamp to -1.0 to 1.0 range
+            float newPan = pan + randomPanOffset;
+            pan = (newPan < -1.0f) ? -1.0f : (newPan > 1.0f) ? 1.0f : newPan;
+        }
+
+        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency) * detuneFactor;
+        oscillator.multiplier = 1.0;
+        oscillator.isLooping = sampleBuffer->isLooping;
 
         // Smooth glide to the new note frequency
         glideSemitones = 0.0f;
@@ -180,6 +260,9 @@ namespace DunneCore
     {
         noteNumber = -1;
         instanceID = 0;
+        unisonGroupID = 0;
+        unisonIndex = 0;
+        totalUnisonVoices = 1;
         isInRelease = false;
         ampEnvelope.reset();
         volumeRamper.init(0.0f);
@@ -206,10 +289,16 @@ namespace DunneCore
             {
                 tempGain = masterVolume * noteVolume;
                 volumeRamper.reinit(ampEnvelope.getSample(), sampleCount);
-                sampleBuffer = newSampleBuffer;
-                oscillator.increment = (sampleBuffer->sampleRate / samplingRate) * (noteFrequency / sampleBuffer->noteFrequency);
-                oscillator.indexPoint = sampleBuffer->startPoint;
-                oscillator.isLooping = sampleBuffer->isLooping;
+
+                // Only reset oscillator position if we're actually changing buffers
+                // Otherwise preserve the indexPoint that was set (with random offset)
+                if (sampleBuffer != newSampleBuffer)
+                {
+                    sampleBuffer = newSampleBuffer;
+                    oscillator.increment = (sampleBuffer->sampleRate / samplingRate) * (noteFrequency / sampleBuffer->noteFrequency);
+                    oscillator.indexPoint = sampleBuffer->startPoint;
+                    oscillator.isLooping = sampleBuffer->isLooping;
+                }
             }
         }
         else

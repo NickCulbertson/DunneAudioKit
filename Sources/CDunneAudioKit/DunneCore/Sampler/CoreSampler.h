@@ -76,6 +76,7 @@ public:
     // Helper methods for voice management
     DunneCore::SamplerVoice* findVoice(unsigned noteNumber);
     DunneCore::SamplerVoice* findActiveVoice();
+    std::vector<DunneCore::SamplerVoice*> findActiveVoiceGroup();
     DunneCore::SamplerVoice* findFreeVoice();
     
     // Helper methods for note tracking
@@ -144,6 +145,8 @@ public:
     float voiceStartOffsetRange; // 0-1000 samples, random start offset per voice
     float voicePanSpread;        // 0-100%, random pan spread per voice
     int unisonVoices;            // 1-8 voices, number of voices to trigger per note
+    float unisonDetune;          // 0-50 cents, symmetric detune spread for unison
+    float unisonSpread;          // 0-100%, symmetric pan spread for unison
 
     // parameters for mono-mode only
     

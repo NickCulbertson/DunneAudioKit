@@ -55,6 +55,8 @@ typedef NS_ENUM(AUParameterAddress, SamplerParameter)
     SamplerParameterVoiceStartOffsetRange,
     SamplerParameterVoicePanSpread,
     SamplerParameterUnisonVoices,
+    SamplerParameterUnisonDetune,
+    SamplerParameterUnisonSpread,
 
     // ensure this is always last in the list, to simplify parameter addressing
     SamplerParameterRampDuration,

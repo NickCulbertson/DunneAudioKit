@@ -593,6 +593,34 @@ public class Sampler: Node {
     /// Unison Voices (1-8) - number of voices to trigger per note
     @Parameter(unisonVoicesDef) public var unisonVoices: AUValue
 
+    /// Specification details for unisonDetune
+    public static let unisonDetuneDef = NodeParameterDef(
+        identifier: "unisonDetune",
+        name: "Unison Detune",
+        address: akGetParameterAddress("SamplerParameterUnisonDetune"),
+        defaultValue: 0,
+        range: 0 ... 50,
+        unit: .cents,
+        flags: nonRampFlags
+    )
+
+    /// Unison Detune (cents) - symmetric detune spread for unison voices
+    @Parameter(unisonDetuneDef) public var unisonDetune: AUValue
+
+    /// Specification details for unisonSpread
+    public static let unisonSpreadDef = NodeParameterDef(
+        identifier: "unisonSpread",
+        name: "Unison Spread",
+        address: akGetParameterAddress("SamplerParameterUnisonSpread"),
+        defaultValue: 0,
+        range: 0 ... 100,
+        unit: .percent,
+        flags: nonRampFlags
+    )
+
+    /// Unison Spread (%) - symmetric pan spread for unison voices
+    @Parameter(unisonSpreadDef) public var unisonSpread: AUValue
+
     // MARK: - Initialization
 
     /// Initialize without any descriptors
