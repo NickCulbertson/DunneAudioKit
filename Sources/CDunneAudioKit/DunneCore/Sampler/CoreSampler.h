@@ -6,11 +6,15 @@
 #include <memory>
 #include <vector>
 #include <tuple>
+#include <map>
+#include <mutex>
 #else
 #import "Sampler_Typedefs.h"
 #import <memory>
 #import <vector>
 #import <tuple>
+#import <map>
+#import <mutex>
 #endif
 
 // process samples in "chunks" this size
@@ -36,6 +40,8 @@ public:
     
     std::vector<std::tuple<unsigned, uint32_t, bool>> activeNotes;
     std::vector<unsigned> heldNotes;
+    std::map<unsigned, std::vector<uint32_t>> noteGroupStacks;  // Track stacks of unison groups per note for overlapping
+    std::mutex noteGroupStacksMutex;  // Protects noteGroupStacks from concurrent access
     unsigned getLastHeldNote();
     
     /// call before/after loading/unloading samples, to ensure none are in use

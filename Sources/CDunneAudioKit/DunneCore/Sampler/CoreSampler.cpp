@@ -183,6 +183,9 @@ void CoreSampler::setMode(bool mono, bool legato) {
     if (mono != isMonophonic || legato != isLegato) {
         isMonophonic = mono;
         isLegato = legato;
+        // Clear overlapping note stacks when changing modes (thread-safe)
+        std::lock_guard<std::mutex> lock(noteGroupStacksMutex);
+        noteGroupStacks.clear();
     }
 }
 
@@ -228,8 +231,10 @@ void CoreSampler::loadSampleData(SampleDataDescriptor& sdd)
     pBuf->pan = sdd.sampleDescriptor.pan;
     
     data->sampleBufferList.push_back(pBuf);
-    
-    pBuf->init(sdd.sampleRate, sdd.channelCount, sdd.sampleCount);
+
+    // Validate sample rate to prevent division by zero
+    float validSampleRate = sdd.sampleRate > 0 ? sdd.sampleRate : 44100.0f;
+    pBuf->init(validSampleRate, sdd.channelCount, sdd.sampleCount);
     float *pData = sdd.data;
     if (sdd.isInterleaved)
     {
@@ -251,7 +256,17 @@ void CoreSampler::loadSampleData(SampleDataDescriptor& sdd)
     pBuf->noteNumber = sdd.sampleDescriptor.noteNumber;
     pBuf->tune = 0;
     pBuf->noteFrequency = sdd.sampleDescriptor.noteFrequency * powf(2.0f, -sdd.sampleDescriptor.tune / 1200.0f);
-    
+
+    // Validate noteFrequency to prevent division by zero in oscillator calculations
+    if (pBuf->noteFrequency <= 0.0f)
+    {
+        // If invalid, use default frequency for the note number (or A440 if note number invalid)
+        if (pBuf->noteNumber >= 0 && pBuf->noteNumber < 128)
+            pBuf->noteFrequency = NOTE_HZ(pBuf->noteNumber);
+        else
+            pBuf->noteFrequency = 440.0f;  // Fallback to A440
+    }
+
     // Handle rare case where loopEndPoint is 0 (uninitialized)
     if (sdd.sampleDescriptor.loopEndPoint == 0.0f)
         sdd.sampleDescriptor.loopEndPoint = float(sdd.sampleCount - 1);
@@ -511,15 +526,32 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
     
     // Handle polyphonic mode
     if (immediate || data->pedalLogic.keyUpAction(noteNumber)) {
-        for (int i = 0; i < MAX_POLYPHONY; i++) {
-            DunneCore::SamplerVoice* pVoice = &data->voice[i];
-            if (pVoice->noteNumber == noteNumber) {
-                if (immediate) {
-                    pVoice->stop();
-                    removeFromActiveNotes(pVoice->instanceID);
-                } else {
-                    pVoice->release(loopThruRelease);
-                    updateActiveNoteTracking(pVoice->instanceID, noteNumber, true);
+        uint32_t groupToRelease = 0;
+        bool hasGroupToRelease = false;
+
+        // Thread-safe access to noteGroupStacks
+        {
+            std::lock_guard<std::mutex> lock(noteGroupStacksMutex);
+            if (!noteGroupStacks[noteNumber].empty()) {
+                // Pop the most recent group ID (LIFO - Last In First Out)
+                groupToRelease = noteGroupStacks[noteNumber].back();
+                noteGroupStacks[noteNumber].pop_back();
+                hasGroupToRelease = true;
+            }
+        }
+
+        // Release voices outside the lock to avoid holding mutex during audio processing
+        if (hasGroupToRelease) {
+            for (int i = 0; i < MAX_POLYPHONY; i++) {
+                DunneCore::SamplerVoice* pVoice = &data->voice[i];
+                if (pVoice->unisonGroupID == groupToRelease) {
+                    if (immediate) {
+                        pVoice->stop();
+                        removeFromActiveNotes(pVoice->instanceID);
+                    } else {
+                        pVoice->release(loopThruRelease);
+                        updateActiveNoteTracking(pVoice->instanceID, noteNumber, true);
+                    }
                 }
             }
         }
@@ -633,8 +665,9 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
             finalPan = fmaxf(-1.0f, fminf(1.0f, finalPan)); // Clamp to valid range
 
             // Apply automatic gain compensation for unison voices to prevent clipping
-            float gainCompensation = (unisonVoices > 1) ? (1.0f / unisonVoices) : 1.0f;
-            float compensatedVolume = pBuf->volume * gainCompensation;
+            // Reduce by 10*log10(N) dB for N voices (half of the standard 20*log10 formula)
+            float gainCompensationDB = (unisonVoices > 1) ? (10.0f * log10f(1.0f / unisonVoices)) : 0.0f;
+            float compensatedVolume = pBuf->volume + gainCompensationDB;
 
             // Set base gain and pan BEFORE start() so random spread can be applied on top
             pVoice->setGain(compensatedVolume);
@@ -645,6 +678,12 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
             activeNotes.push_back({noteNumber, pVoice->instanceID, false});
         }
     }
+
+    // Track this group for overlapping note support in polyphonic mode (thread-safe)
+    {
+        std::lock_guard<std::mutex> lock(noteGroupStacksMutex);
+        noteGroupStacks[noteNumber].push_back(currentGroupID);
+    }
 }
 
 void CoreSampler::stopAllVoicesMonophonic() {
@@ -654,6 +693,10 @@ void CoreSampler::stopAllVoicesMonophonic() {
         }
     }
     activeNotes.clear();
+    {
+        std::lock_guard<std::mutex> lock(noteGroupStacksMutex);
+        noteGroupStacks.clear();
+    }
 }
 
 void CoreSampler::sustainPedal(bool down)
@@ -691,14 +734,18 @@ void CoreSampler::stopAllVoices()
 {
     stoppingAllVoices = true;
     heldNotes.clear();
-    
+
     for (int i = 0; i < MAX_POLYPHONY; i++) {
         if (data->voice[i].noteNumber >= 0) {
             data->voice[i].stop();
         }
     }
-    
+
     activeNotes.clear();
+    {
+        std::lock_guard<std::mutex> lock(noteGroupStacksMutex);
+        noteGroupStacks.clear();
+    }
     stoppingAllVoices = false;
 }
 

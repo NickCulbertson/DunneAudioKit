@@ -84,7 +84,12 @@ namespace DunneCore
         }
         // If spread is 0, pan stays at its base value (from SFZ or API)
 
-        oscillator.increment = (buffer->sampleRate / sampleRate) * (frequency / buffer->noteFrequency) * detuneFactor;
+        // Calculate oscillator increment with safety checks to prevent division by zero
+        if (sampleRate > 0.0f && buffer->noteFrequency > 0.0f) {
+            oscillator.increment = (buffer->sampleRate / sampleRate) * (frequency / buffer->noteFrequency) * detuneFactor;
+        } else {
+            oscillator.increment = 1.0;  // Fallback to 1:1 playback
+        }
         oscillator.multiplier = 1.0;
         oscillator.isLooping = buffer->isLooping;
 
@@ -158,7 +163,12 @@ namespace DunneCore
             pan = (newPan < -1.0f) ? -1.0f : (newPan > 1.0f) ? 1.0f : newPan;
         }
 
-        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency) * detuneFactor;
+        // Calculate oscillator increment with safety checks to prevent division by zero
+        if (sampleRate > 0.0f && sampleBuffer->noteFrequency > 0.0f) {
+            oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency) * detuneFactor;
+        } else {
+            oscillator.increment = 1.0;  // Fallback to 1:1 playback
+        }
         oscillator.multiplier = 1.0;
         oscillator.isLooping = sampleBuffer->isLooping;
         glideSemitones = 0.0f;
@@ -227,7 +237,12 @@ namespace DunneCore
             pan = (newPan < -1.0f) ? -1.0f : (newPan > 1.0f) ? 1.0f : newPan;
         }
 
-        oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency) * detuneFactor;
+        // Calculate oscillator increment with safety checks to prevent division by zero
+        if (sampleRate > 0.0f && sampleBuffer->noteFrequency > 0.0f) {
+            oscillator.increment = (sampleBuffer->sampleRate / sampleRate) * (frequency / sampleBuffer->noteFrequency) * detuneFactor;
+        } else {
+            oscillator.increment = 1.0;  // Fallback to 1:1 playback
+        }
         oscillator.multiplier = 1.0;
         oscillator.isLooping = sampleBuffer->isLooping;
 
@@ -295,7 +310,12 @@ namespace DunneCore
                 if (sampleBuffer != newSampleBuffer)
                 {
                     sampleBuffer = newSampleBuffer;
-                    oscillator.increment = (sampleBuffer->sampleRate / samplingRate) * (noteFrequency / sampleBuffer->noteFrequency);
+                    // Calculate oscillator increment with safety checks to prevent division by zero
+                    if (samplingRate > 0.0f && sampleBuffer->noteFrequency > 0.0f) {
+                        oscillator.increment = (sampleBuffer->sampleRate / samplingRate) * (noteFrequency / sampleBuffer->noteFrequency);
+                    } else {
+                        oscillator.increment = 1.0;  // Fallback to 1:1 playback
+                    }
                     oscillator.indexPoint = sampleBuffer->startPoint;
                     oscillator.isLooping = sampleBuffer->isLooping;
                 }
@@ -307,7 +327,7 @@ namespace DunneCore
             volumeRamper.reinit(ampEnvelope.getSample(), sampleCount);
         }
         
-        if (*glideSecPerOctave != 0.0f && glideSemitones != 0.0f)
+        if (*glideSecPerOctave != 0.0f && glideSemitones != 0.0f && samplingRate > 0.0f)
         {
             float seconds = sampleCount / samplingRate;
 
@@ -361,18 +381,25 @@ namespace DunneCore
             float noteHz = noteFrequency * powf(2.0f, (pitchOffsetModified) / 12.0f);
             float baseFrequency = MIDDLE_C_HZ + keyTracking * (noteHz - MIDDLE_C_HZ);
             float envStrength = ((1.0f - cutoffEnvelopeVelocityScaling) + cutoffEnvelopeVelocityScaling * noteVolume);
+
+            // Calculate base cutoff frequency
             double cutoffFrequency = baseFrequency * (1.0f + cutoffMultiple + cutoffEnvelopeStrength * envStrength * filterEnvelope.getSample());
+
+            // Apply LFO modulation if enabled
             if (lfoTargetFilter > 0.5f)
             {
                 // Limit how much the LFO can offset the cutoff
-                float maxLFOFilterOffset = 2000.0f; // Adjust this value as needed
+                float maxLFOFilterOffset = 2000.0f;
                 float lfoFilterMod = globalLFOValue * maxLFOFilterOffset;
-                
-                // Make sure cutoff never goes below a minimum threshold (e.g., 20Hz)
-                float minCutoffHz = 20.0f;
-                cutoffFrequency = std::max(minCutoffHz, baseFrequency * (1.0f + cutoffMultiple +
-                                   cutoffEnvelopeStrength * envStrength * filterEnvelope.getSample()) + lfoFilterMod);
+                cutoffFrequency += lfoFilterMod;
             }
+
+            // Clamp cutoff frequency to safe range to prevent filter instability/crashes
+            // Min: 12Hz (filter's internal minimum), Max: Nyquist frequency (samplingRate/2)
+            float minCutoffHz = 12.0f;
+            float maxCutoffHz = samplingRate * 0.45f;  // 45% of sample rate to stay well below Nyquist
+            cutoffFrequency = std::max((double)minCutoffHz, std::min(cutoffFrequency, (double)maxCutoffHz));
+
             leftFilter.setParameters(cutoffFrequency, resLinear);
             rightFilter.setParameters(cutoffFrequency, resLinear);
         }
