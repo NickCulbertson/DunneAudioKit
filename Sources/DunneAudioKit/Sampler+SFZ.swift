@@ -109,6 +109,14 @@ extension SamplerData {
         func processGlobal(_ line: String) {
             let opcodes = parseOpcodes(line)
 
+            // Reset velocity defaults to SFZ spec defaults for new global section
+            if opcodes["lovel"] == nil {
+                globalLowVel = 0
+            }
+            if opcodes["hivel"] == nil {
+                globalHighVel = 127
+            }
+
             // Update global defaults
             if let key = opcodes["key"], let num = MIDINoteNumber(key) {
                 globalNoteNumber = num
@@ -333,10 +341,18 @@ extension SamplerData {
                         path: path
                     ))
                 }
-            } else if normalizedSample.hasSuffix(".aif") || normalizedSample.hasSuffix(".wav") {
+            } else if normalizedSample.hasSuffix(".aif") ||
+                      normalizedSample.hasSuffix(".aiff") ||
+                      normalizedSample.hasSuffix(".aifc") ||
+                      normalizedSample.hasSuffix(".wav") ||
+                      normalizedSample.hasSuffix(".flac") ||
+                      normalizedSample.hasSuffix(".mp3") ||
+                      normalizedSample.hasSuffix(".m4a") ||
+                      normalizedSample.hasSuffix(".caf") {
                 // Check for compressed version first
+                let extensionLength = (normalizedSample as NSString).pathExtension.count + 1
                 let compressedFileURL = samplesBaseURL
-                    .appendingPathComponent(String(normalizedSample.dropLast(4) + ".wv"))
+                    .appendingPathComponent(String(normalizedSample.dropLast(extensionLength) + ".wv"))
 
                 if FileManager.default.fileExists(atPath: compressedFileURL.path) {
                     compressedFileURL.path.withCString { path in

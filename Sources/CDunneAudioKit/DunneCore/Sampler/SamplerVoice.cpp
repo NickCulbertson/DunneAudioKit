@@ -199,26 +199,6 @@ namespace DunneCore
         leftFilter.updateSampleRate(double(samplingRate));
         rightFilter.updateSampleRate(double(samplingRate));
 
-        // Reset sample position with random start offset (for mono legato)
-        float randomOffset = 0;
-        if (*voiceStartOffsetRange > 0) {
-            // Calculate maximum safe offset based on sample boundaries
-            float maxSafeOffset = sampleBuffer->endPoint - sampleBuffer->startPoint;
-
-            // If looping, also respect loop end point to ensure loop region is reached
-            if (sampleBuffer->isLooping && sampleBuffer->loopEndPoint > sampleBuffer->startPoint) {
-                maxSafeOffset = fminf(maxSafeOffset, sampleBuffer->loopEndPoint - sampleBuffer->startPoint);
-            }
-
-            // Clamp the range to what's actually safe
-            float effectiveRange = fminf(*voiceStartOffsetRange, maxSafeOffset);
-
-            if (effectiveRange > 0) {
-                randomOffset = rand() % ((int)effectiveRange + 1);
-            }
-        }
-        oscillator.indexPoint = sampleBuffer->startPoint + randomOffset;
-
         // Random detune for analog-style pitch variation
         float detuneFactor = 1.0f;
         if (*voiceDetuneRange > 0) {
@@ -382,8 +362,12 @@ namespace DunneCore
             float baseFrequency = MIDDLE_C_HZ + keyTracking * (noteHz - MIDDLE_C_HZ);
             float envStrength = ((1.0f - cutoffEnvelopeVelocityScaling) + cutoffEnvelopeVelocityScaling * noteVolume);
 
-            // Calculate base cutoff frequency
-            double cutoffFrequency = baseFrequency * (1.0f + cutoffMultiple + cutoffEnvelopeStrength * envStrength * filterEnvelope.getSample());
+            // Calculate base cutoff frequency with safe multiplier
+            // Clamp the multiplier to prevent negative or extreme values
+            float cutoffMultiplier = 1.0f + cutoffMultiple + cutoffEnvelopeStrength * envStrength * filterEnvelope.getSample();
+            cutoffMultiplier = std::max(0.05f, std::min(cutoffMultiplier, 100.0f));  // Clamp multiplier to reasonable range
+
+            double cutoffFrequency = baseFrequency * cutoffMultiplier;
 
             // Apply LFO modulation if enabled
             if (lfoTargetFilter > 0.5f)

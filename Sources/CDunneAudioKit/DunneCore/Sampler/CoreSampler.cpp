@@ -665,8 +665,7 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
             finalPan = fmaxf(-1.0f, fminf(1.0f, finalPan)); // Clamp to valid range
 
             // Apply automatic gain compensation for unison voices to prevent clipping
-            // Reduce by 10*log10(N) dB for N voices (half of the standard 20*log10 formula)
-            float gainCompensationDB = (unisonVoices > 1) ? (10.0f * log10f(1.0f / unisonVoices)) : 0.0f;
+            float gainCompensationDB = (unisonVoices > 1) ? (5.0f * log10f(1.0f / unisonVoices)) : 0.0f;
             float compensatedVolume = pBuf->volume + gainCompensationDB;
 
             // Set base gain and pan BEFORE start() so random spread can be applied on top
