@@ -343,9 +343,13 @@ void SamplerDSP::setParameter(AUParameterAddress address, float value, bool imme
         case SamplerParameterVoicePanSpread:
             sampler->voicePanSpread = value;
             break;
-
         case SamplerParameterUnisonVoices:
-            sampler->unisonVoices = (int)value;
+            sampler->unisonVoices = (int)(value + 0.5f);
+            // Calculate automatic volume compensation for unison voices
+            {
+                float compensationDB = sampler->unisonVoices > 1 ? -1.0f * sampler->unisonVoices + 1.0f : 0.0f;
+                sampler->unisonCompensationLinear = powf(10.0f, compensationDB / 20.0f);
+            }
             break;
         case SamplerParameterUnisonDetune:
             sampler->unisonDetune = value;

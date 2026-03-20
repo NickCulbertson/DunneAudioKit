@@ -153,6 +153,7 @@ public:
     int unisonVoices;            // 1-8 voices, number of voices to trigger per note
     float unisonDetune;          // 0-50 cents, symmetric detune spread for unison
     float unisonSpread;          // 0-100%, symmetric pan spread for unison
+    float unisonCompensationLinear; // Automatic volume compensation for unison voices
 
     // parameters for mono-mode only
     

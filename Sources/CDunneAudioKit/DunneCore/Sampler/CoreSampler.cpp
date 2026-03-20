@@ -71,6 +71,7 @@ CoreSampler::CoreSampler()
 , unisonVoices(1)
 , unisonDetune(0.0f)
 , unisonSpread(0.0f)
+, unisonCompensationLinear(1.0f)
 , isMonophonic(false)
 , isLegato(false)
 , portamentoRate(1.0f)
@@ -402,12 +403,12 @@ unsigned CoreSampler::getLastHeldNote()
 void CoreSampler::playNote(unsigned noteNumber, unsigned velocity)
 {
     if (stoppingAllVoices) return;
-    
+
     // Get sample buffers and register key
     auto buffers = lookupSamples(noteNumber, velocity);
     if (buffers.empty()) return;
     data->pedalLogic.keyDownAction(noteNumber);
-    
+
     // Update held notes
     removeHeldNote(noteNumber);
     addHeldNote(noteNumber);
@@ -471,6 +472,14 @@ void CoreSampler::stopNote(unsigned noteNumber, bool immediate)
 
     // Handle monophonic mode
     if (isMonophonic && wasHeld && !immediate) {
+        // Check if sustain pedal is preventing the note from stopping
+        // heldNotes has already been updated to reflect physical key state
+        if (!data->pedalLogic.keyUpAction(noteNumber)) {
+            // Sustain pedal is holding this note - don't transition or release yet
+            // The note will be released when sustain pedal is lifted
+            return;
+        }
+
         // Find all currently sounding voices (excludes releasing tails)
         auto voiceGroup = findActiveVoiceGroup();
 
@@ -664,12 +673,7 @@ void CoreSampler::play(unsigned noteNumber, unsigned velocity, bool anotherKeyWa
             float finalPan = pBuf->pan + unisonPanOffset;
             finalPan = fmaxf(-1.0f, fminf(1.0f, finalPan)); // Clamp to valid range
 
-            // Apply automatic gain compensation for unison voices to prevent clipping
-            float gainCompensationDB = (unisonVoices > 1) ? (5.0f * log10f(1.0f / unisonVoices)) : 0.0f;
-            float compensatedVolume = pBuf->volume + gainCompensationDB;
-
-            // Set base gain and pan BEFORE start() so random spread can be applied on top
-            pVoice->setGain(compensatedVolume);
+            pVoice->setGain(pBuf->volume);
             pVoice->setPan(finalPan);
             pVoice->start(noteNumber, currentSampleRate, detunedFrequency, velocity / 127.0f, pBuf);
 
@@ -706,21 +710,107 @@ void CoreSampler::sustainPedal(bool down)
     }
     else
     {
-        // Release all voices that were being sustained
-        for (int nn = 0; nn < MIDI_NOTENUMBERS; nn++)
+        if (isMonophonic)
         {
-            if (data->pedalLogic.isNoteSustaining(nn))
+            // In mono mode, when sustain is released, check if the currently playing note
+            // should transition to another held note or release
+            auto voiceGroup = findActiveVoiceGroup();
+            if (!voiceGroup.empty())
             {
-                // Pedal up must release ALL active instances of this note,
-                // especially in unison mode where multiple voices exist per note
-                for (int i = 0; i < MAX_POLYPHONY; i++)
+                int currentlyPlaying = voiceGroup[0]->noteNumber;
+
+                // Check if the currently playing note is sustaining (key not held)
+                if (data->pedalLogic.isNoteSustaining(currentlyPlaying))
                 {
-                    DunneCore::SamplerVoice &voice = data->voice[i];
-                    if (voice.noteNumber == nn)
+                    // Check if there are other keys still held that we should transition to
+                    unsigned nextHeldNote = getLastHeldNote();
+
+                    if (nextHeldNote != (unsigned)-1 && nextHeldNote != (unsigned)currentlyPlaying)
                     {
-                        // Don't hard stop - let tails ring out naturally
-                        voice.release(loopThruRelease);
-                        updateActiveNoteTracking(voice.instanceID, nn, true);
+                        // Transition to the last held note
+                        float baseFrequency = data->tuningTable[nextHeldNote];
+
+                        for (auto* pVoice : voiceGroup)
+                        {
+                            // Recalculate detune offset for this voice's position in the unison group
+                            float position = 0.0f;
+                            if (pVoice->totalUnisonVoices > 1)
+                            {
+                                position = -1.0f + (2.0f * pVoice->unisonIndex / (pVoice->totalUnisonVoices - 1));
+                            }
+                            float unisonDetuneOffset = position * unisonDetune;
+                            float detuneFactor = powf(2.0f, unisonDetuneOffset / 1200.0f);
+                            float detunedFrequency = baseFrequency * detuneFactor;
+
+                            if (isLegato)
+                            {
+                                pVoice->restartNewNoteLegato(nextHeldNote, currentSampleRate, detunedFrequency);
+                            }
+                            else
+                            {
+                                pVoice->restartNewNoteMono(nextHeldNote, currentSampleRate, detunedFrequency);
+                            }
+
+                            updateActiveNoteTracking(pVoice->instanceID, nextHeldNote, false);
+                            pVoice->noteNumber = nextHeldNote;
+                            pVoice->noteFrequency = detunedFrequency;
+                        }
+                    }
+                    else
+                    {
+                        // No other keys held - release the note
+                        for (auto* pVoice : voiceGroup)
+                        {
+                            pVoice->release(loopThruRelease);
+                            updateActiveNoteTracking(pVoice->instanceID, currentlyPlaying, true);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Polyphonic mode: release sustained notes, but keep the most recent instance if key is still held
+            for (int nn = 0; nn < MIDI_NOTENUMBERS; nn++)
+            {
+                // Check if this note has multiple instances stacked (e.g., pressed twice with sustain held)
+                // and the key is currently still down
+                bool keyIsStillDown = data->pedalLogic.keyDown[nn];
+
+                std::vector<uint32_t> groupsToRelease;
+                {
+                    std::lock_guard<std::mutex> lock(noteGroupStacksMutex);
+                    if (keyIsStillDown && noteGroupStacks[nn].size() > 1)
+                    {
+                        // Key is held: release all but the most recent (top) group
+                        // The top group stays because the key is still down
+                        for (size_t i = 0; i < noteGroupStacks[nn].size() - 1; i++)
+                        {
+                            groupsToRelease.push_back(noteGroupStacks[nn][i]);
+                        }
+                        // Remove the released groups from the stack, keeping only the top one
+                        noteGroupStacks[nn].erase(noteGroupStacks[nn].begin(),
+                                                 noteGroupStacks[nn].end() - 1);
+                    }
+                    else if (data->pedalLogic.isNoteSustaining(nn))
+                    {
+                        // Key is not held: release all instances
+                        groupsToRelease = noteGroupStacks[nn];
+                        noteGroupStacks[nn].clear();
+                    }
+                }
+
+                // Release voices outside the lock
+                for (uint32_t groupID : groupsToRelease)
+                {
+                    for (int i = 0; i < MAX_POLYPHONY; i++)
+                    {
+                        DunneCore::SamplerVoice &voice = data->voice[i];
+                        if (voice.unisonGroupID == groupID)
+                        {
+                            voice.release(loopThruRelease);
+                            updateActiveNoteTracking(voice.instanceID, nn, true);
+                        }
                     }
                 }
             }
@@ -802,11 +892,11 @@ void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *out
     float leftPan = (overallPan <= 0.0f) ? 1.0f : (1.0f - overallPan);
     float rightPan = (overallPan >= 0.0f) ? 1.0f : (1.0f + overallPan);
     
-    // Apply master gain and pan - this remains unchanged
+    // Apply master gain, unison compensation, and pan
     for (unsigned i = 0; i < sampleCount; i++)
     {
-        float leftValue = pOutLeft[i] * overallGainLinear * leftPan;
-        float rightValue = pOutRight[i] * overallGainLinear * rightPan;
+        float leftValue = pOutLeft[i] * overallGainLinear * unisonCompensationLinear * leftPan;
+        float rightValue = pOutRight[i] * overallGainLinear * unisonCompensationLinear * rightPan;
         pOutLeft[i] = leftValue;
         pOutRight[i] = rightValue;
     }
