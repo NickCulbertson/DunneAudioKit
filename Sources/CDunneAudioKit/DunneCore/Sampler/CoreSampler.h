@@ -48,6 +48,22 @@ public:
     void stopAllVoices();
     void stopAllVoicesMonophonic();
     void restartVoices();
+
+    /// After mutating the tuning table (setNoteFrequency etc.), call this to
+    /// retune any currently-playing voices in place — they pick up the new
+    /// frequencies on the next render block without retriggering envelopes.
+    /// Without this call, mutations to the tuning table only affect notes
+    /// triggered after the change.
+    void retuneActiveVoices();
+
+    /// HARD reset — walks every voice slot, force-stops each, and clears all
+    /// note-tracking state. Use for "MIDI Panic" / "Reset" buttons that
+    /// must guarantee silence regardless of whether note-on/note-off
+    /// tracking got out of sync. Unlike stopAllVoices() this never sets
+    /// the stoppingAllVoices flag (which can leave the engine refusing
+    /// future notes if anything goes wrong mid-call) and never blocks on
+    /// the noteGroupStacks mutex (which is bad on the audio thread).
+    void panic();
     
     /// call to load samples
     void loadSampleData(SampleDataDescriptor& sdd);

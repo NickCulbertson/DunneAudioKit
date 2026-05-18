@@ -674,20 +674,49 @@ public class Sampler: Node {
     }
 
     /// Set a custom tuning table for all MIDI note numbers
-    public func setTuningTable(frequencies: [Float]) {
+    /// - Parameters:
+    ///   - frequencies: 128 Hz values, one per MIDI note number.
+    ///   - retuneActiveVoices: When `true`, any notes currently playing
+    ///     are retuned in place to the new frequencies (no retrigger, no
+    ///     envelope reset). When `false` (default), only future note-ons
+    ///     pick up the new tuning. Use `true` for live alt-tuning swaps.
+    public func setTuningTable(frequencies: [Float], retuneActiveVoices: Bool = false) {
         guard frequencies.count == 128 else {
             print("The tuning table must have 128 frequencies.")
             return
         }
-        
+
         guard let samplerData = samplerData else {
             print("SamplerData is not initialized.")
             return
         }
-        
+
         for (noteNumber, frequency) in frequencies.enumerated() {
             samplerData.setNoteFrequency(noteNumber: noteNumber, frequency: frequency)
         }
+
+        if retuneActiveVoices {
+            samplerData.retuneActiveVoices()
+        }
+    }
+
+    /// Retune any currently-playing voices to the values in the tuning
+    /// table. Useful when you've called `setNoteFrequency` for one or
+    /// more individual notes and want the change to take effect on held
+    /// notes without retriggering them.
+    public func retuneActiveVoices() {
+        samplerData?.retuneActiveVoices()
+    }
+
+    /// HARD MIDI Panic — walks every voice slot and force-stops each
+    /// regardless of note-on/note-off tracking, and clears all held-note
+    /// state. Unlike `silence()` (which sends CC 123 and goes through the
+    /// kernel's `stoppingAllVoices` flag), this never leaves the engine
+    /// in a state where future notes are refused. Use this for
+    /// user-facing "MIDI Panic" / "Reset" buttons where reliability
+    /// matters more than envelope-graceful release.
+    public func panic() {
+        samplerData?.panic()
     }
 
     /// Reset LFO's startpoint
@@ -857,6 +886,22 @@ public struct SamplerData {
     /// Set a custom frequency for a specific MIDI note number
     public func setNoteFrequency(noteNumber: Int, frequency: Float) {
         akCoreSamplerSetNoteFrequency(coreSamplerRef, Int32(noteNumber), frequency)
+    }
+
+    /// Retune any currently-playing voices to whatever frequencies the
+    /// tuning table currently holds. Call after mutating the table (via
+    /// setNoteFrequency / setTuningTable) when you want held notes to
+    /// pick up the new tuning in place — no retrigger, no envelope reset.
+    public func retuneActiveVoices() {
+        akCoreSamplerRetuneActiveVoices(coreSamplerRef)
+    }
+
+    /// HARD reset — force-stops every voice slot directly and clears all
+    /// note-tracking state, bypassing note-on/note-off tracking. For
+    /// MIDI Panic / Reset buttons that must guarantee silence even when
+    /// a note-off was lost or tracking is out of sync.
+    public func panic() {
+        akCoreSamplerPanic(coreSamplerRef)
     }
 
     /// Reset LFO's startpoint

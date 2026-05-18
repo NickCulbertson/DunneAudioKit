@@ -76,6 +76,8 @@ CoreSamplerRef akCoreSamplerCreate(void);
 void akCoreSamplerLoadData(CoreSamplerRef pSampler, SampleDataDescriptor *pSDD);
 void akCoreSamplerLoadCompressedFile(CoreSamplerRef pSampler, SampleFileDescriptor *pSFD);
 void akCoreSamplerSetNoteFrequency(CoreSamplerRef pSampler, int noteNumber, float noteFrequency);
+void akCoreSamplerRetuneActiveVoices(CoreSamplerRef pSampler);
+void akCoreSamplerPanic(CoreSamplerRef pSampler);
 void akCoreSamplerBuildSimpleKeyMap(CoreSamplerRef pSampler);
 void akCoreSamplerBuildKeyMap(CoreSamplerRef pSampler);
 void akCoreSamplerSetLoopThruRelease(CoreSamplerRef pSampler, bool value);

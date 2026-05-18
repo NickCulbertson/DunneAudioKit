@@ -843,6 +843,56 @@ void CoreSampler::restartVoices()
     stoppingAllVoices = false;
 }
 
+void CoreSampler::panic()
+{
+    // Walk every voice slot directly and force-stop each, regardless of
+    // whether the tracking arrays still reference it. This is the only
+    // reliable way to silence "stuck" voices where a note-on registered
+    // but the corresponding note-off was lost or dropped — stopNote() /
+    // stop(noteNumber:) wouldn't find them because the tracking is out
+    // of sync.
+    //
+    // Deliberately does NOT touch stoppingAllVoices (avoiding the
+    // "refuses future notes" failure mode) and does NOT take the
+    // noteGroupStacks mutex (which is risky on the audio thread).
+    // We accept a tiny race window where a voice mid-render might
+    // produce a single-block transient as its envelope is reset — vastly
+    // preferable to "notes dead forever" from a stuck flag.
+    for (int i = 0; i < MAX_POLYPHONY; i++) {
+        // voice.stop() resets noteNumber to -1, clears envelopes, zeroes
+        // the volume ramper. Next render block reads noteNumber < 0
+        // and skips the voice. No further audio from this slot.
+        data->voice[i].stop();
+    }
+
+    // Clear note-tracking state. vector::clear is not atomic but on the
+    // audio thread the worst case is iterating a partially-cleared list
+    // for one frame, which just means an active-note lookup misses —
+    // benign post-panic since voices are already silenced.
+    activeNotes.clear();
+    heldNotes.clear();
+
+    // Best-effort clear of mono/legato stacks. If the audio thread is
+    // currently in setMode() holding the mutex, skip — those stacks
+    // become irrelevant the next time the user plays a note in
+    // mono/legato mode and the engine rebuilds them.
+    std::unique_lock<std::mutex> lock(noteGroupStacksMutex, std::try_to_lock);
+    if (lock.owns_lock()) {
+        noteGroupStacks.clear();
+    }
+}
+
+void CoreSampler::retuneActiveVoices()
+{
+    // Retunes playing notes. Overrides Unison detune.
+    for (int i = 0; i < MAX_POLYPHONY; i++) {
+        int note = data->voice[i].noteNumber;
+        if (note >= 0 && note < 128) {
+            data->voice[i].noteFrequency = data->tuningTable[note];
+        }
+    }
+}
+
 void CoreSampler::render(unsigned channelCount, unsigned sampleCount, float *outBuffers[])
 {
     float *pOutLeft = outBuffers[0];

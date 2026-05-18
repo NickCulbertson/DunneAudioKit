@@ -56,6 +56,14 @@ void akCoreSamplerSetNoteFrequency(CoreSamplerRef pSampler, int noteNumber, floa
     pSampler->setNoteFrequency(noteNumber, noteFrequency);
 }
 
+void akCoreSamplerRetuneActiveVoices(CoreSamplerRef pSampler) {
+    pSampler->retuneActiveVoices();
+}
+
+void akCoreSamplerPanic(CoreSamplerRef pSampler) {
+    pSampler->panic();
+}
+
 void akCoreSamplerBuildSimpleKeyMap(CoreSamplerRef pSampler) {
     pSampler->buildSimpleKeyMap();
 }
