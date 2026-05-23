@@ -50,12 +50,26 @@ namespace DunneCore
 
     void MultiSegmentEnvelopeGenerator::setupCurSeg()
     {
+        // Guard against calling before init() has populated the segments
+        // vector (e.g. panic() walking voice slots before any preset loads,
+        // or a transport-stop sweep on a fresh AU instance). Without this
+        // we dereference an empty std::vector → crash. Treat as a no-op
+        // since there's no envelope state to set up yet.
+        if (!segments || segments->empty() ||
+            curSegIndex < 0 || curSegIndex >= (int)segments->size()) {
+            return;
+        }
         SegmentDescriptor seg = (*segments)[curSegIndex];
         ExponentialSegmentGenerator::reset(seg.initialValue, seg.finalValue, seg.tco, seg.lengthSamples);
     }
 
     void MultiSegmentEnvelopeGenerator::setupCurSeg(double initValue)
     {
+        // Same guard as above — see comment in setupCurSeg().
+        if (!segments || segments->empty() ||
+            curSegIndex < 0 || curSegIndex >= (int)segments->size()) {
+            return;
+        }
         SegmentDescriptor seg = (*segments)[curSegIndex];
         double targetValue = seg.finalValue;
         bool isHorizontal = seg.initialValue == seg.finalValue;
@@ -69,6 +83,8 @@ namespace DunneCore
     {
         segments = pDesc;
         curSegIndex = initialSegmentIndex;
+        // setupCurSeg() guards against an empty/uninitialized descriptor
+        // vector internally — safe to call unconditionally.
         setupCurSeg();
     }
 
@@ -91,7 +107,10 @@ namespace DunneCore
 
     bool MultiSegmentEnvelopeGenerator::skipEmptySegments() //skips over any segment w/ length 0, so as to not influence the state of the envelope
     {
-        assert(segments);
+        // Release-mode guard: assert(segments) is compiled out in release
+        // builds, so a null descriptor here would crash on segments->size().
+        // Bail safely instead.
+        if (!segments) return false;
 
         // skip any segments that are 0-length
         while(curSegIndex < segments->size()
