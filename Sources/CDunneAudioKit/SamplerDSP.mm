@@ -164,6 +164,12 @@ struct SamplerDSP : DSPBase
         newSampler->unisonVoices = sampler->unisonVoices;
         newSampler->unisonDetune = sampler->unisonDetune;
         newSampler->unisonSpread = sampler->unisonSpread;
+        if (newSampler->unisonVoices > 1) {
+            float compensationDB = -1.0f * newSampler->unisonVoices + 1.0f;
+            newSampler->unisonCompensationLinear = powf(10.0f, compensationDB / 20.0f);
+        } else {
+            newSampler->unisonCompensationLinear = 1.0f;
+        }
         newSampler->restartVoiceLFO = sampler->restartVoiceLFO;
 
         sampler.set(newSampler);
