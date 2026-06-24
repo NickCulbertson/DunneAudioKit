@@ -637,10 +637,17 @@ public class Sampler: Node {
     public func loadSFZ(url: URL) {
         loadSFZ(url: url, completion: nil)
     }
-    
+
     public func loadSFZ(url: URL, completion: (() -> Void)?) {
         samplerData = SamplerData(sfzURL: url, completion: completion)
         update(data: samplerData!)
+    }
+
+    public func loadSF2(url: URL, bank: Int, program: Int, completion: (() -> Void)? = nil) {
+        let data = SamplerData()
+        data.loadSF2(url: url, bank: bank, program: program, completion: completion)
+        samplerData = data
+        update(data: data)
     }
 
     public func load(avAudioFile: AVAudioFile) {
@@ -763,6 +770,9 @@ public class Sampler: Node {
 ///  Use SamplerData together with SamplerDescriptor to build complex layers with different sounds. 
 public struct SamplerData {
     var coreSamplerRef = akCoreSamplerCreate()
+
+    /// Initialize an empty sampler — use loadSF2 / loadSFZ / loadAudioFile to populate it.
+    public init() {}
 
     /// Initialize this sampler node for one file.
     ///
