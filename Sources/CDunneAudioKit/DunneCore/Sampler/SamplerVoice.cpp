@@ -393,7 +393,7 @@ namespace DunneCore
     bool SamplerVoice::getSamples(int sampleCount, float* leftOutput, float* rightOutput) {
         for (int i = 0; i < sampleCount; i++) {
             // Apply gain
-            float sampleGain = (tempGain + gain) * volumeRamper.getNextValue();
+            float sampleGain = tempGain * (gain + 1.0f) * volumeRamper.getNextValue();
             float leftSample, rightSample;
 
             if (oscillator.getSamplePair(sampleBuffer, sampleCount, &leftSample, &rightSample, sampleGain)) return true;
