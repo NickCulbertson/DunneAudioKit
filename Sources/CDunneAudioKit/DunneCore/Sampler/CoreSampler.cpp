@@ -236,6 +236,8 @@ void CoreSampler::loadSampleData(SampleDataDescriptor& sdd)
     // Validate sample rate to prevent division by zero
     float validSampleRate = sdd.sampleRate > 0 ? sdd.sampleRate : 44100.0f;
     pBuf->init(validSampleRate, sdd.channelCount, sdd.sampleCount);
+    // Allocation refused; the empty buffer is inert, so skip the copy.
+    if (pBuf->samples == 0) return;
     float *pData = sdd.data;
     if (sdd.isInterleaved)
     {

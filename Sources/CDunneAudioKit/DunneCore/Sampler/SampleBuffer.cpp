@@ -2,6 +2,8 @@
 
 #include "SampleBuffer.h"
 
+#include <new>
+
 namespace DunneCore
 {
 
@@ -28,7 +30,21 @@ namespace DunneCore
         this->sampleCount = sampleCount;
         this->channelCount = channelCount;
         if (samples) delete[] samples;
-        samples = new float[channelCount * sampleCount];
+
+        // On failure the buffer is left empty, which reads as silence.
+        const long long elementCount = (long long)channelCount * (long long)sampleCount;
+        samples = (channelCount >= 0 && sampleCount >= 0)
+                      ? new (std::nothrow) float[(size_t)elementCount]
+                      : 0;
+        if (samples == 0)
+        {
+            this->channelCount = 0;
+            this->sampleCount = 0;
+            loopStartPoint = startPoint = 0.0f;
+            loopEndPoint = endPoint = 0.0f;
+            return;
+        }
+
         loopStartPoint = startPoint = 0.0f;
         loopEndPoint = endPoint = (float)(sampleCount - 1);
     }
